@@ -19,3 +19,21 @@ CREATE TABLE questions (
     CONSTRAINT questions_correct_option_exists
         CHECK (options ? correct_option_id)
 );
+
+INSERT INTO questions (
+    prompt,
+    options,
+    correct_option_id,
+    explanation
+)
+VALUES (
+    'Which statement best describes a process?',
+    '{
+        "A": "A program stored on disk",
+        "B": "A program in execution",
+        "C": "A physical CPU core",
+        "D": "A file containing instructions"
+    }'::jsonb,
+    'B',
+    'A process is a program in execution, including its execution state and resources.'
+);
