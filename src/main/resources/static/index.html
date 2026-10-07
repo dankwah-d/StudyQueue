@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StudyQueue</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f4f6fa;
+      color: #172033;
+      font-family: system-ui, sans-serif;
+    }
+    main { max-width: 680px; margin: 60px auto; padding: 24px; }
+    header p { color: #627084; }
+    section {
+      background: white;
+      padding: 28px;
+      border-radius: 16px;
+      box-shadow: 0 8px 30px #1720330a;
+    }
+    h1 { margin-bottom: 4px; }
+    h2 { font-size: 23px; }
+    label {
+      display: flex;
+      gap: 12px;
+      padding: 15px;
+      margin: 10px 0;
+      border: 1px solid #dce2eb;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    label:has(input:checked) {
+      background: #eef3ff;
+      border-color: #4263eb;
+    }
+    button {
+      margin-top: 16px;
+      padding: 12px 20px;
+      border: 0;
+      border-radius: 8px;
+      background: #4263eb;
+      color: white;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .5; cursor: default; }
+    #feedback { margin-top: 20px; line-height: 1.6; }
+    .correct { color: #187044; }
+    .incorrect { color: #a33333; }
+    #status { color: #627084; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>StudyQueue</h1>
+      <p>Operating Systems · Question practice</p>
+    </header>
+
+    <section>
+      <p id="status" role="status">Loading questions…</p>
+      <h2 id="prompt"></h2>
+
+      <form id="answer-form">
+        <div id="options"></div>
+        <button id="submit" disabled>Check answer</button>
+      </form>
+
+      <div id="feedback" role="status" aria-live="polite"></div>
+      <button id="next" type="button" hidden>Next question</button>
+    </section>
+  </main>
+
+  <script>
+    const status = document.querySelector("#status");
+    const prompt = document.querySelector("#prompt");
+    const options = document.querySelector("#options");
+    const form = document.querySelector("#answer-form");
+    const submit = document.querySelector("#submit");
+    const feedback = document.querySelector("#feedback");
+    const next = document.querySelector("#next");
+
+    let questions = [];
+    let index = 0;
+    let busy = false;
+    let answered = false;
+
+    function renderQuestion() {
+      const question = questions[index];
+      answered = false;
+      status.textContent = `Question ${index + 1} of ${questions.length}`;
+      prompt.textContent = question.prompt;
+      options.replaceChildren();
+      feedback.replaceChildren();
+      submit.disabled = true;
+      next.hidden = true;
+
+      for (const [id, text] of Object.entries(question.options)) {
+        const label = document.createElement("label");
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = "optionId";
+        radio.value = id;
+        radio.required = true;
+
+        const caption = document.createElement("span");
+        caption.textContent = `${id}. ${text}`;
+
+        label.append(radio, caption);
+        options.append(label);
+      }
+    }
+
+    form.addEventListener("change", () => {
+      submit.disabled = busy || answered;
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (busy || answered) return;
+
+      const optionId = new FormData(form).get("optionId");
+      if (!optionId) return;
+
+      busy = true;
+      submit.disabled = true;
+      feedback.textContent = "Checking…";
+
+      try {
+        const response = await fetch(
+          `/api/questions/${questions[index].id}/answer`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ optionId })
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Answer request failed (${response.status}).`);
+        }
+
+        const result = await response.json();
+        answered = true;
+
+        const heading = document.createElement("strong");
+        heading.className = result.correct ? "correct" : "incorrect";
+        heading.textContent = result.correct
+          ? "Correct!"
+          : `Incorrect. Correct answer: ${result.correctOptionId}.`;
+
+        const explanation = document.createElement("p");
+        explanation.textContent = result.explanation || "";
+
+        feedback.replaceChildren(heading, explanation);
+        options.querySelectorAll("input").forEach(input => {
+          input.disabled = true;
+        });
+
+        next.hidden = false;
+        next.textContent = index < questions.length - 1
+          ? "Next question"
+          : "Practice again";
+      } catch (error) {
+        feedback.textContent = `${error.message} Please try again.`;
+      } finally {
+        busy = false;
+        submit.disabled = answered;
+      }
+    });
+
+    next.addEventListener("click", () => {
+      index = (index + 1) % questions.length;
+      renderQuestion();
+    });
+
+    async function loadQuestions() {
+      try {
+        const response = await fetch("/api/questions");
+        if (!response.ok) {
+          throw new Error(`Question request failed (${response.status}).`);
+        }
+
+        questions = await response.json();
+
+        if (!Array.isArray(questions) || questions.length === 0) {
+          status.textContent = "No questions available yet.";
+          return;
+        }
+
+        renderQuestion();
+      } catch (error) {
+        status.textContent = `${error.message} Refresh to retry.`;
+      }
+    }
+
+    loadQuestions();
+  </script>
+</body>
+</html>
