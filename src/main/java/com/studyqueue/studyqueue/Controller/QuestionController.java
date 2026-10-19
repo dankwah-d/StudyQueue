@@ -1,6 +1,8 @@
 package com.studyqueue.studyqueue.Controller;
 
+import com.studyqueue.studyqueue.Service.Attempt;
 import com.studyqueue.studyqueue.Question;
+import com.studyqueue.studyqueue.Repository.AttemptRepository;
 import com.studyqueue.studyqueue.Repository.QuestionRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -14,13 +16,22 @@ import java.util.Map;
 public class QuestionController {
 
     private final QuestionRepository repository;
+    private final AttemptRepository attemptRepository;
 
-    public QuestionController(QuestionRepository repository) {
+    public QuestionController(
+            QuestionRepository repository,
+            AttemptRepository attemptRepository) {
         this.repository = repository;
+        this.attemptRepository = attemptRepository;
     }
 
     public record QuestionView(
             Long id, String prompt, Map<String, String> options) {}
+
+    public record AnswerRequest(String optionId) {}
+
+    public record AnswerResult(
+            boolean correct, String correctOptionId, String explanation) {}
 
     @GetMapping
     public List<QuestionView> getQuestions() {
@@ -29,11 +40,6 @@ public class QuestionController {
                         q.getId(), q.getPrompt(), q.getOptions()))
                 .toList();
     }
-
-    public record AnswerRequest(String optionId) {}
-
-    public record AnswerResult(
-            boolean correct, String correctOptionId, String explanation) {}
 
     @PostMapping("/{id}/answer")
     public AnswerResult answer(
@@ -50,8 +56,14 @@ public class QuestionController {
                     HttpStatus.BAD_REQUEST, "Choose a valid option");
         }
 
+        boolean correct =
+                question.getCorrectOptionId().equals(request.optionId());
+
+        attemptRepository.save(
+                new Attempt(question.getId(), request.optionId(), correct));
+
         return new AnswerResult(
-                question.getCorrectOptionId().equals(request.optionId()),
+                correct,
                 question.getCorrectOptionId(),
                 question.getExplanation());
     }

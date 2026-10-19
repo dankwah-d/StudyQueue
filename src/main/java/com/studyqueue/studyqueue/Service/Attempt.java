@@ -1,4 +1,4 @@
-package com.studyqueue.studyqueue;
+package com.studyqueue.studyqueue.Service;
 
 import jakarta.persistence.*;
 import java.time.Instant;
