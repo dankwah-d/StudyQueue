@@ -3,11 +3,11 @@ package com.studyqueue.studyqueue;
 import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-
 import java.util.Map;
 
-@Entity
-@Table(name = "questions")
+    @Entity
+    @Table(name = "questions")
+
 public class Question {
 
     @Id
@@ -24,6 +24,14 @@ public class Question {
     @Column(name = "correct_option_id", nullable = false)
     private String correctOptionId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "concept_id")
+    private Concept concept;
+
+    public Concept getConcept() {
+        return concept;
+    }
+    
     private String explanation;
 
     protected Question() {}

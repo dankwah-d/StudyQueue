@@ -25,21 +25,33 @@ public class QuestionController {
         this.attemptRepository = attemptRepository;
     }
 
-    public record QuestionView(
-            Long id, String prompt, Map<String, String> options) {}
+public record ConceptView(Long id, String name) {}
+
+public record QuestionView(
+        Long id,
+        String prompt,
+        Map<String, String> options,
+        ConceptView concept) {}
 
     public record AnswerRequest(String optionId) {}
 
     public record AnswerResult(
             boolean correct, String correctOptionId, String explanation) {}
 
-    @GetMapping
-    public List<QuestionView> getQuestions() {
-        return repository.findAll().stream()
-                .map(q -> new QuestionView(
-                        q.getId(), q.getPrompt(), q.getOptions()))
-                .toList();
-    }
+@GetMapping
+public List<QuestionView> getQuestions() {
+    return repository.findAll().stream()
+            .map(q -> new QuestionView(
+                    q.getId(),
+                    q.getPrompt(),
+                    q.getOptions(),
+                    q.getConcept() == null
+                            ? null
+                            : new ConceptView(
+                                    q.getConcept().getId(),
+                                    q.getConcept().getName())))
+            .toList();
+}
 
     @PostMapping("/{id}/answer")
     public AnswerResult answer(
