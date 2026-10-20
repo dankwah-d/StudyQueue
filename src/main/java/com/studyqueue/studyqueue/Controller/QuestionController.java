@@ -5,6 +5,7 @@ import com.studyqueue.studyqueue.Question;
 import com.studyqueue.studyqueue.Repository.AttemptRepository;
 import com.studyqueue.studyqueue.Repository.QuestionRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -41,7 +42,21 @@ public record QuestionView(
 @GetMapping
 public List<QuestionView> getQuestions() {
     return repository.findAll().stream()
-            .map(q -> new QuestionView(
+            .map(this::toView)
+            .toList();
+}
+
+    @GetMapping("/next")
+    public ResponseEntity<QuestionView> getNextQuestion() {
+        return repository.findNextQuestionId()
+                .flatMap(repository::findById)
+                .map(this::toView)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    private QuestionView toView(Question q) {
+        return new QuestionView(
                     q.getId(),
                     q.getPrompt(),
                     q.getOptions(),
@@ -49,9 +64,8 @@ public List<QuestionView> getQuestions() {
                             ? null
                             : new ConceptView(
                                     q.getConcept().getId(),
-                                    q.getConcept().getName())))
-            .toList();
-}
+                                    q.getConcept().getName()));
+    }
 
     @PostMapping("/{id}/answer")
     public AnswerResult answer(

@@ -4,76 +4,82 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>StudyQueue</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: #f4f6fa;
-      color: #172033;
-      font-family: system-ui, sans-serif;
-    }
-    main { max-width: 680px; margin: 60px auto; padding: 24px; }
-    header p { color: #627084; }
-    section {
-      background: white;
-      padding: 28px;
-      border-radius: 16px;
-      box-shadow: 0 8px 30px #1720330a;
-    }
-    h1 { margin-bottom: 4px; }
-    h2 { font-size: 23px; }
-    label {
-      display: flex;
-      gap: 12px;
-      padding: 15px;
-      margin: 10px 0;
-      border: 1px solid #dce2eb;
-      border-radius: 10px;
-      cursor: pointer;
-    }
-    label:has(input:checked) {
-      background: #eef3ff;
-      border-color: #4263eb;
-    }
-    button {
-      margin-top: 16px;
-      padding: 12px 20px;
-      border: 0;
-      border-radius: 8px;
-      background: #4263eb;
-      color: white;
-      font: inherit;
-      cursor: pointer;
-    }
-    button:disabled { opacity: .5; cursor: default; }
-    #feedback { margin-top: 20px; line-height: 1.6; }
-    .correct { color: #187044; }
-    .incorrect { color: #a33333; }
-    #status { color: #627084; }
-  </style>
+  <link rel="stylesheet" href="/studyqueue.css">
 </head>
 <body>
-  <main>
-    <header>
-      <h1>StudyQueue</h1>
-      <p>Operating Systems · Question practice</p>
-    </header>
-
-    <section>
-      <p id="status" role="status">Loading questions…</p>
-      <h2 id="prompt"></h2>
-
-      <form id="answer-form">
-        <div id="options"></div>
-        <button id="submit" disabled>Check answer</button>
-      </form>
-
-      <div id="feedback" role="status" aria-live="polite"></div>
-      <button id="next" type="button" hidden>Next question</button>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="app-header">
+    <a class="brand" href="#practice" aria-label="StudyQueue practice"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>Study<span>Queue</span></a>
+    <nav class="view-nav" aria-label="Study views">
+      <a href="#practice" data-view="practice" aria-current="page"><span aria-hidden="true">&#9655;</span> Practice</a>
+      <a href="#concept-map" data-view="concept-map"><span aria-hidden="true">&#9671;</span> Concept map</a>
+      <a href="#concept-stats" data-view="concept-stats"><span aria-hidden="true">&#9636;</span> Progress</a>
+    </nav>
+    <span class="subject-label"><span aria-hidden="true" class="subject-dot"></span>Operating Systems</span>
+  </header>
+  <main id="main-content" tabindex="-1">
+    <section id="practice" class="view study-view" aria-labelledby="practice-heading">
+      <div class="view-heading"><div><p class="eyebrow">OPERATING SYSTEMS</p><h1 id="practice-heading">Let's work through it.</h1></div><span class="mode-label"><span aria-hidden="true">&#10022;</span> Adaptive practice</span></div>
+      <div class="study-layout">
+        <div class="question-shell">
+          <div class="question-topline"><p id="status" class="topic-label" role="status">Finding your next question&hellip;</p><span class="question-kind">Choose one answer</span></div>
+          <div class="question-content">
+            <h2 id="prompt" tabindex="-1"></h2>
+            <form id="answer-form">
+              <fieldset><legend class="sr-only">Choose one answer</legend><div id="options"></div></fieldset>
+            </form>
+            <div id="feedback" role="status" aria-live="polite" tabindex="-1"></div>
+          </div>
+          <div class="study-actions"><p id="answer-hint">Take your time. Choose the answer that fits best.</p><button id="submit" form="answer-form" type="submit" disabled>Check answer <span aria-hidden="true">&#8594;</span></button><button id="next" type="button" hidden>Next question <span aria-hidden="true">&#8594;</span></button></div>
+        </div>
+        <aside class="study-sidebar" aria-label="Study context">
+          <div class="context-card"><span class="section-symbol" aria-hidden="true">&#9673;</span><p class="eyebrow">IN FOCUS</p><h2 id="focus-concept">Finding your concept</h2><p id="focus-detail">Questions adapt to your recorded practice.</p><a class="inline-link" href="#concept-map">See the connections <span aria-hidden="true">&#8599;</span></a></div>
+          <div class="study-tip"><span aria-hidden="true">&#10035;</span><h3>Understanding comes first.</h3><p>Check your answer, read the explanation, then give the next question a go.</p></div>
+          <p class="quiet-note">No timer. Room to think.</p>
+        </aside>
+      </div>
     </section>
+
+    <section id="concept-map" class="view" aria-labelledby="graph-heading" hidden>
+      <div class="view-heading"><div><p class="eyebrow">THE CONNECTIONS</p><h1 id="graph-heading">One concept leads to another.</h1><p class="view-description">Start with the foundations. Each mastered prerequisite opens a new path.</p></div><a class="secondary-button" href="#practice">Back to practice <span aria-hidden="true">&#8594;</span></a></div>
+      <div class="map-panel"><div class="panel-heading"><h2>Your learning path</h2><div class="graph-legend"><span><i class="legend-dot practicing" aria-hidden="true"></i>Practicing</span><span><i class="legend-dot mastered" aria-hidden="true"></i>Mastered</span><span><i class="legend-dot locked" aria-hidden="true"></i>Locked</span></div></div><p id="graph-status" role="status">Loading concept graph&hellip;</p><div id="concept-graph" tabindex="0" role="region" aria-label="Concept prerequisites; scroll horizontally to explore"></div><p class="graph-note">Follow the arrows from a prerequisite to the concept it unlocks. A dashed outline means the concept is locked.</p></div>
+      <div class="section-heading"><h2>Your concepts</h2><p>The details behind each step.</p></div>
+      <div id="concept-list" class="concept-list"></div>
+      <p class="view-note">Looking for attempt counts and accuracy? <a href="#concept-stats">Open your progress.</a></p>
+    </section>
+
+    <section id="concept-stats" class="view" aria-labelledby="stats-heading" hidden>
+      <div class="view-heading"><div><p class="eyebrow">YOUR LEARNING, SO FAR</p><h1 id="stats-heading">See where you're growing.</h1><p class="view-description">A record of your practice, and a guide to what needs attention.</p></div><a class="secondary-button" href="#practice">Keep practicing <span aria-hidden="true">&#8594;</span></a></div>
+      <div class="overview" aria-label="Concept progress" aria-describedby="overview-status"><div class="metric"><span class="metric-label">Concept attempts</span><strong id="overview-attempts">&mdash;</strong><span>Answers linked to concepts</span></div><div class="metric"><span class="metric-label">Accuracy</span><strong id="overview-accuracy">&mdash;</strong><span>Correct answers across those attempts</span></div><div class="metric"><span class="metric-label">Concepts mastered</span><strong id="overview-mastered">&mdash;</strong><span>A foundation for what's next</span></div></div>
+      <p id="overview-status" class="overview-status" role="status">Loading progress&hellip;</p>
+      <div class="progress-panel"><div class="panel-heading"><h2>Concept by concept</h2><span class="panel-caption">All recorded practice</span></div><p id="stats-status" role="status">Loading statistics&hellip;</p><div class="table-scroll" tabindex="0" role="region" aria-label="Concept statistics"><table id="stats-table" role="table" hidden><caption class="sr-only">Attempts, accuracy, state, availability, and prerequisites by concept</caption><thead role="rowgroup"><tr role="row"><th scope="col">Concept</th><th scope="col">Attempts</th><th scope="col">Correct</th><th scope="col">Accuracy</th><th scope="col">State</th><th scope="col">Practice</th><th scope="col">Prerequisites</th></tr></thead><tbody id="stats-rows" role="rowgroup"></tbody></table></div></div>
+      <details class="mastery-rules"><summary>What does mastered mean?</summary><p>A concept is mastered after at least 5 attempts with 80% accuracy, using unrounded results. New answers can change that state. A concept unlocks when all its direct prerequisites are mastered. These statistics cover all recorded practice in this installation, not a personal account.</p></details>
+    </section>
+    <div id="data-recovery" class="data-recovery" hidden><p>Progress couldn't be refreshed. Your question is still available.</p><button id="stats-retry" type="button" hidden>Retry progress</button></div>
+    <footer class="app-footer"><span>StudyQueue <span aria-hidden="true">/</span> Operating Systems</span><span>Build understanding, one question at a time.</span></footer>
   </main>
 
+  <script src="/concept-graph.js"></script>
   <script>
+    const viewIds = ["practice", "concept-map", "concept-stats"];
+    function showView(moveFocus = false) {
+      const requested = window.location.hash.slice(1);
+      const active = viewIds.includes(requested) ? requested : "practice";
+      for (const id of viewIds) {
+        document.querySelector(`#${id}`).hidden = id !== active;
+        const link = document.querySelector(`[data-view="${id}"]`);
+        if (id === active) link.setAttribute("aria-current", "page");
+        else link.removeAttribute("aria-current");
+      }
+      if (moveFocus) {
+        const heading = document.querySelector(`#${active} h1`);
+        heading.setAttribute("tabindex", "-1");
+        heading.focus({ preventScroll: true });
+        window.scrollTo(0, 0);
+      }
+    }
+    window.addEventListener("hashchange", () => showView(true));
+    showView();
     const status = document.querySelector("#status");
     const prompt = document.querySelector("#prompt");
     const options = document.querySelector("#options");
@@ -81,19 +87,146 @@
     const submit = document.querySelector("#submit");
     const feedback = document.querySelector("#feedback");
     const next = document.querySelector("#next");
+    const statsStatus = document.querySelector("#stats-status");
+    const statsTable = document.querySelector("#stats-table");
+    const statsRows = document.querySelector("#stats-rows");
+    const statsRetry = document.querySelector("#stats-retry");
+    const graphStatus = document.querySelector("#graph-status");
+    const graphContainer = document.querySelector("#concept-graph");
+    const overviewStatus = document.querySelector("#overview-status");
+    const overviewAttempts = document.querySelector("#overview-attempts");
+    const overviewAccuracy = document.querySelector("#overview-accuracy");
+    const overviewMastered = document.querySelector("#overview-mastered");
+    const conceptList = document.querySelector("#concept-list");
+    const focusConcept = document.querySelector("#focus-concept");
+    const focusDetail = document.querySelector("#focus-detail");
+    const answerHint = document.querySelector("#answer-hint");
+    const dataRecovery = document.querySelector("#data-recovery");
+    let latestStats = [];
+    const stateNames = { NOT_STARTED: "Not started", PRACTICING: "Practicing", MASTERED: "Mastered" };
+    function updateFocus() {
+      const concept = question?.concept;
+      focusConcept.textContent = concept?.name || (question ? "General practice" : "Finding your concept");
+      const stats = latestStats.find(item => item.conceptId === concept?.id);
+      focusDetail.textContent = stats
+        ? `${stateNames[stats.state] || "Unknown"} · ${stats.totalAttempts} attempts · ${stats.accuracyPercent.toFixed(1)}% accuracy`
+        : "Questions adapt to your recorded practice.";
+    }
+    let statsRequest = 0;
 
-    let questions = [];
-    let index = 0;
+    async function loadConceptStats() {
+      const request = ++statsRequest;
+      statsStatus.textContent = "Loading statistics…";
+      statsRetry.hidden = true;
+      dataRecovery.hidden = true;
+      statsTable.hidden = true;
+      graphStatus.textContent = "Loading concept graph…";
+      graphContainer.replaceChildren();
+      overviewStatus.textContent = "Updating your progress…";
+      try {
+        const response = await fetch("/api/stats/concepts");
+        if (!response.ok) throw new Error("Statistics request failed.");
+        const stats = await response.json();
+        if (!Array.isArray(stats)) throw new Error("Invalid statistics response.");
+        if (request !== statsRequest) return;
+        statsRows.replaceChildren();
+        conceptList.replaceChildren();
+        latestStats = stats;
+        updateFocus();
+        for (const concept of stats) {
+          const row = document.createElement("tr");
+          const name = document.createElement("th");
+          name.scope = "row";
+          name.textContent = concept.conceptName;
+          name.setAttribute("role", "rowheader");
+          row.setAttribute("role", "row");
+          row.append(name);
+          for (const [index, value] of [concept.totalAttempts, concept.correctAnswers,
+              `${concept.accuracyPercent.toFixed(1)}%`,
+              { NOT_STARTED: "Not started", PRACTICING: "Practicing", MASTERED: "Mastered" }[concept.state] || "Unknown",
+              concept.eligible ? "Available" : "Locked"].entries()) {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            cell.setAttribute("role", "cell");
+            cell.setAttribute("data-label", ["Attempts", "Correct", "Accuracy", "State", "Practice"][index]);
+            if (index === 3) cell.setAttribute("data-state", concept.state);
+            if (index === 4) cell.className = concept.eligible ? "availability-available" : "availability-locked";
+            row.append(cell);
+          }
+          const prerequisites = concept.prerequisites || [];
+          const blockers = prerequisites.filter(item => item.state !== "MASTERED");
+          const requirement = document.createElement("td");
+          requirement.textContent = blockers.length
+            ? `Needs mastery: ${blockers.map(item =>
+                `${item.conceptName} (${item.totalAttempts} attempts, ${item.accuracyPercent.toFixed(1)}%)`).join("; ")}`
+            : prerequisites.length
+              ? `Mastered: ${prerequisites.map(item => item.conceptName).join(", ")}`
+              : "None";
+          row.append(requirement);
+          requirement.setAttribute("role", "cell");
+          requirement.setAttribute("data-label", "Prerequisites");
+          statsRows.append(row);
+          const card = document.createElement("article");
+          card.className = "concept-card";
+          card.setAttribute("data-state", concept.state);
+          const cardState = document.createElement("p");
+          cardState.className = "concept-state";
+          cardState.textContent = `${stateNames[concept.state] || "Unknown"} / ${concept.eligible ? "Available" : "Locked"}`;
+          const cardName = document.createElement("h3");
+          cardName.textContent = concept.conceptName;
+          const cardDetail = document.createElement("p");
+          cardDetail.textContent = blockers.length ? requirement.textContent
+            : prerequisites.length ? requirement.textContent : "Foundation concept. No prerequisites.";
+          card.append(cardState, cardName, cardDetail);
+          conceptList.append(card);
+        }
+        statsTable.hidden = stats.length === 0;
+        statsStatus.textContent = stats.length === 0 ? "No concepts available yet." : "";
+        const attempts = stats.reduce((total, concept) => total + concept.totalAttempts, 0);
+        const correct = stats.reduce((total, concept) => total + concept.correctAnswers, 0);
+        overviewAttempts.textContent = attempts.toLocaleString();
+        overviewAccuracy.textContent = `${(attempts ? 100 * correct / attempts : 0).toFixed(1)}%`;
+        overviewMastered.textContent = `${stats.filter(concept => concept.state === "MASTERED").length} / ${stats.length}`;
+        overviewStatus.textContent = "Across all recorded attempts linked to concepts.";
+        graphStatus.textContent = renderConceptGraph(graphContainer, stats);
+      } catch (error) {
+        if (request !== statsRequest) return;
+        statsTable.hidden = true;
+        statsStatus.textContent = "Could not load concept statistics. You can keep practicing.";
+        statsRetry.hidden = false;
+        dataRecovery.hidden = false;
+        conceptList.replaceChildren();
+        latestStats = [];
+        updateFocus();
+        graphContainer.replaceChildren();
+        graphStatus.textContent = "Could not load the concept graph. Use Retry statistics to try again.";
+        overviewAttempts.textContent = "—";
+        overviewAccuracy.textContent = "—";
+        overviewMastered.textContent = "—";
+        overviewStatus.textContent = "Could not refresh progress. You can keep practicing.";
+      }
+    }
+
+    statsRetry.addEventListener("click", loadConceptStats);
+
+    let question = null;
     let busy = false;
     let answered = false;
+    const optionElements = new Map();
 
     function renderQuestion() {
-      const question = questions[index];
       answered = false;
-      status.textContent = `Question ${index + 1} of ${questions.length}`;
+      updateFocus();
+      status.textContent = question.concept
+        ? `Practice: ${question.concept.name}` : "Question practice";
       prompt.textContent = question.prompt;
       options.replaceChildren();
       feedback.replaceChildren();
+      feedback.removeAttribute("data-result");
+      optionElements.clear();
+      answerHint.textContent = "Take your time. Choose the answer that fits best.";
+      submit.hidden = false;
+      submit.textContent = "Check answer →";
       submit.disabled = true;
       next.hidden = true;
 
@@ -106,31 +239,43 @@
         radio.required = true;
 
         const caption = document.createElement("span");
-        caption.textContent = `${id}. ${text}`;
+        caption.className = "option-text";
+        caption.textContent = text;
+        const key = document.createElement("span");
+        key.className = "option-key";
+        key.textContent = id;
+        key.setAttribute("aria-hidden", "true");
+        const indicator = document.createElement("span");
+        indicator.className = "option-indicator";
 
-        label.append(radio, caption);
+        label.append(radio, key, caption, indicator);
+        optionElements.set(id, { label, radio, indicator });
         options.append(label);
       }
     }
 
     form.addEventListener("change", () => {
       submit.disabled = busy || answered;
+      if (!busy && !answered) answerHint.textContent = "Ready when you are.";
     });
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (busy || answered) return;
+      if (busy || answered || !question) return;
 
       const optionId = new FormData(form).get("optionId");
       if (!optionId) return;
 
       busy = true;
       submit.disabled = true;
-      feedback.textContent = "Checking…";
+      feedback.replaceChildren();
+      feedback.removeAttribute("data-result");
+      submit.textContent = "Checking…";
+      answerHint.textContent = "Checking your answer…";
 
       try {
         const response = await fetch(
-          `/api/questions/${questions[index].id}/answer`,
+          `/api/questions/${question.id}/answer`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -144,59 +289,93 @@
 
         const result = await response.json();
         answered = true;
+        void loadConceptStats();
 
         const heading = document.createElement("strong");
         heading.className = result.correct ? "correct" : "incorrect";
         heading.textContent = result.correct
           ? "Correct!"
-          : `Incorrect. Correct answer: ${result.correctOptionId}.`;
+          : "Not quite. Let's work through it.";
 
         const explanation = document.createElement("p");
         explanation.textContent = result.explanation || "";
 
         feedback.replaceChildren(heading, explanation);
-        options.querySelectorAll("input").forEach(input => {
-          input.disabled = true;
-        });
+        feedback.setAttribute("data-result", result.correct ? "correct" : "incorrect");
+        if (!result.correct) {
+          const solution = document.createElement("p");
+          solution.className = "correct-answer";
+          solution.textContent = `Correct answer: ${result.correctOptionId}. ${question.options[result.correctOptionId] || ""}`;
+          feedback.append(solution);
+        }
+        for (const [id, option] of optionElements) {
+          option.radio.disabled = true;
+          if (id === result.correctOptionId) {
+            option.label.setAttribute("data-outcome", "correct");
+            option.indicator.textContent = "✓ Correct";
+          } else if (id === optionId) {
+            option.label.setAttribute("data-outcome", "incorrect");
+            option.indicator.textContent = "Your answer";
+          } else option.label.setAttribute("data-outcome", "neutral");
+        }
+        submit.hidden = true;
+        answerHint.textContent = "Read the explanation, then keep going.";
 
         next.hidden = false;
-        next.textContent = index < questions.length - 1
-          ? "Next question"
-          : "Practice again";
+        next.textContent = "Next question";
+        feedback.focus({ preventScroll: true });
       } catch (error) {
+        feedback.removeAttribute("data-result");
         feedback.textContent = `${error.message} Please try again.`;
+        answerHint.textContent = "Your answer wasn't saved. Try again.";
       } finally {
         busy = false;
         submit.disabled = answered;
+        submit.textContent = "Check answer →";
       }
     });
 
-    next.addEventListener("click", () => {
-      index = (index + 1) % questions.length;
-      renderQuestion();
-    });
+    next.addEventListener("click", loadQuestion);
 
-    async function loadQuestions() {
+    async function loadQuestion() {
+      if (busy) return;
+      busy = true;
+      next.disabled = true;
+      submit.disabled = true;
+      status.textContent = "Loading next question…";
       try {
-        const response = await fetch("/api/questions");
+        const response = await fetch("/api/questions/next");
         if (!response.ok) {
           throw new Error(`Question request failed (${response.status}).`);
         }
 
-        questions = await response.json();
-
-        if (!Array.isArray(questions) || questions.length === 0) {
-          status.textContent = "No questions available yet.";
+        if (response.status === 204) {
+          question = null;
+          updateFocus();
+          answered = true;
+          prompt.textContent = "";
+          options.replaceChildren();
+          feedback.replaceChildren();
+          status.textContent = "No eligible questions available. Questions may be missing or require prerequisite mastery.";
+          next.hidden = false;
+          next.textContent = "Check for questions";
           return;
         }
-
+        question = await response.json();
         renderQuestion();
+        prompt.focus({ preventScroll: true });
       } catch (error) {
-        status.textContent = `${error.message} Refresh to retry.`;
+        status.textContent = `${error.message} Retry loading the next question.`;
+        next.hidden = false;
+        next.textContent = "Retry next question";
+      } finally {
+        busy = false;
+        next.disabled = false;
       }
     }
 
-    loadQuestions();
+    loadQuestion();
+    loadConceptStats();
   </script>
 </body>
 </html>
