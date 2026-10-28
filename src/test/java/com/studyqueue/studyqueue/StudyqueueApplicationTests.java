@@ -8,6 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
+@org.springframework.test.context.ActiveProfiles("test")
 @SpringBootTest
 class StudyqueueApplicationTests {
 

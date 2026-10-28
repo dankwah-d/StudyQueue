@@ -21,3 +21,12 @@ existing answer, retry, statistics, prerequisite, and graph behavior. HTML IDs,
 navigation targets, and CSS structure were checked; the running app serves the
 page and stylesheet. Visual browser review remains outstanding because no browser
 connection is available.
+
+
+## Randomized practice (2026-10-28)
+
+Practice uses `/api/questions/eligible` with a stable shuffled queue per page lifetime.
+The queue refreshes prerequisite eligibility before delivery without repeating seen
+questions until exhaustion. Answer choices shuffle on each new presentation; radio
+values retain stored IDs and feedback identifies the matching choice by ID. The map
+and progress views continue to share the existing statistics and graph renderer.

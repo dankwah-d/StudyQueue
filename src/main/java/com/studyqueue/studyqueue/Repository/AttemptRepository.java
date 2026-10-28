@@ -9,7 +9,17 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 
 public interface AttemptRepository extends JpaRepository<Attempt, Long> {
-    long countByCorrectTrue();
+    interface GlobalStats {
+        long getTotalAttempts();
+        long getCorrectAnswers();
+    }
+
+    @Query(value = """
+            SELECT COUNT(*) AS "totalAttempts",
+                   COUNT(*) FILTER (WHERE correct) AS "correctAnswers"
+            FROM attempts
+            """, nativeQuery = true)
+    GlobalStats findGlobalStats();
 
     @Query(value = ConceptStatsSql.COUNTS + """
             SELECT c.id AS "conceptId",

@@ -14,6 +14,18 @@ import static org.mockito.Mockito.when;
 class StatsControllerTest {
 
     @Test
+    void reportsGlobalCountsFromOneAggregate() {
+        AttemptRepository repository = mock(AttemptRepository.class);
+        AttemptRepository.GlobalStats counts = mock(AttemptRepository.GlobalStats.class);
+        when(counts.getTotalAttempts()).thenReturn(3L);
+        when(counts.getCorrectAnswers()).thenReturn(2L);
+        when(repository.findGlobalStats()).thenReturn(counts);
+        assertEquals(new StatsController.Stats(3, 2, 66.7),
+                new StatsController(repository).getStats());
+        org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).count();
+    }
+
+    @Test
     void reportsConceptAttemptCountsAndAccuracy() {
         AttemptRepository repository = mock(AttemptRepository.class);
         ConceptAttemptStatsProjection concept = conceptStats(7L, "Processes", 3, 2);

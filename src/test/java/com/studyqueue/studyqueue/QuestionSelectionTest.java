@@ -16,6 +16,7 @@ import org.springframework.http.MediaType;
 import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@org.springframework.test.context.ActiveProfiles("test")
 @SpringBootTest
 @Transactional
 class QuestionSelectionTest {
@@ -124,6 +125,56 @@ class QuestionSelectionTest {
         expectEligibility("No questions", true);
         http.perform(get("/api/questions/next")).andExpect(status().isNoContent());
         expectNext(question(null));
+    }
+
+    @Test
+    void eligiblePoolUsesExistingPrerequisitesAndHidesSolutions() throws Exception {
+        Long rootConcept = concept("Root");
+        Long root = question(rootConcept);
+        Long lockedConcept = concept("Locked");
+        Long locked = question(lockedConcept);
+        jdbc.update("INSERT INTO concept_prerequisites VALUES (?, ?)", lockedConcept, rootConcept);
+        http.perform(get("/api/questions/eligible"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(root))
+                .andExpect(jsonPath("$[0].correctOptionId").doesNotExist())
+                .andExpect(jsonPath("$[0].explanation").doesNotExist());
+        for (int i = 0; i < 5; i++) submit(root, "A");
+        http.perform(get("/api/questions/eligible"))
+                .andExpect(jsonPath("$[*].id", org.hamcrest.Matchers.hasItem(locked.intValue())))
+                .andExpect(jsonPath("$.length()").value(2));
+        submit(root, "B");
+        submit(root, "B");
+        http.perform(get("/api/questions/eligible"))
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(root));
+    }
+
+    @Test
+    void answerPoolIncludesCorrectChoiceAndGradesStableIds() throws Exception {
+        Long id = jdbc.queryForObject("""
+                INSERT INTO questions(prompt, options, correct_option_id, explanation, display_option_count)
+                VALUES ('Pool test', '{"Z":"Correct","A":"Wrong A","B":"Wrong B",
+                "C":"Wrong C","D":"Wrong D","E":"Wrong E"}'::jsonb, 'Z', 'Original explanation', 4)
+                RETURNING id
+                """, Long.class);
+        http.perform(get("/api/questions/eligible"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].options.length()").value(4))
+                .andExpect(jsonPath("$[0].options.Z").value("Correct"))
+                .andExpect(jsonPath("$[0].correctOptionId").doesNotExist())
+                .andExpect(jsonPath("$[0].explanation").doesNotExist());
+        http.perform(post("/api/questions/{id}/answer", id)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionId\":\"Z\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.correct").value(true))
+                .andExpect(jsonPath("$.explanation").value("Original explanation"));
+        http.perform(post("/api/questions/{id}/answer", id)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"optionId\":\"A\"}"))
+                .andExpect(jsonPath("$.correct").value(false));
+        org.junit.jupiter.api.Assertions.assertEquals(6, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM questions q, jsonb_object_keys(q.options) WHERE q.id = ?", Integer.class, id));
     }
 
     private void submit(Long question, String option) throws Exception {

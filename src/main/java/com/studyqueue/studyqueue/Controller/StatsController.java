@@ -45,8 +45,9 @@ public class StatsController {
 
     @GetMapping
     public Stats getStats() {
-        long total = repository.count();
-        long correct = repository.countByCorrectTrue();
+        var counts = repository.findGlobalStats();
+        long total = counts.getTotalAttempts();
+        long correct = counts.getCorrectAnswers();
 
         return new Stats(total, correct, accuracyPercent(correct, total));
     }

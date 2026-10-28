@@ -1,4 +1,29 @@
-# Next question selection
+# Practice session delivery
+
+The practice UI now fetches `GET /api/questions/eligible` before each new presentation.
+This returns an array of public question DTOs using the existing direct-prerequisite
+mastery rule. Empty pools return `200 []`. Correct-answer identifiers, explanations,
+and answer-pool configuration are omitted before submission.
+
+A page lifetime is one practice session. The browser shuffles eligible IDs once,
+then consumes that stable queue without repeats until the currently eligible pool
+is exhausted. A new cycle reshuffles; it avoids an immediate repeat when another
+question is available. Reloading starts a new session. Navigation among practice,
+map, and statistics keeps the current session.
+
+Each refresh removes relocked/deleted questions and appends shuffled, newly eligible
+unseen IDs after the remaining queue. Unlocking never reshuffles pending questions.
+A failed fetch does not advance the queue. With a single eligible question, repetition
+after exhaustion is necessary. Sessions are local to each page; attempts and mastery
+retain their existing installation-wide scope.
+
+Prerequisite edges already exist in `concept_prerequisites`; no new map is needed.
+Both pool delivery and the legacy recommendation use `ConceptStatsSql.ELIGIBLE`.
+This is prerequisite-aware eligibility rather than a new question type or a graph
+rebuild. Direct prerequisites must be mastered; ancestor eligibility is not recursive.
+The existing graph, blocker explanations, and mastery rules remain unchanged.
+
+## Legacy recommendation endpoint
 
 `GET /api/questions/next` returns one question using the same public fields as
 `GET /api/questions`: `id`, `prompt`, `options`, and nullable `concept` (`id`,
@@ -22,8 +47,8 @@ available for review when no unstarted or practicing concepts have questions.
 Unassigned questions are available when there are no eligible questions linked to concepts.
 The mastery thresholds are shared with `ConceptState` (5 attempts and 80%).
 
-The practice page requests a recommendation on initial load and when the learner
-clicks Next question after answering. A failed request offers a retry; an empty
+The legacy endpoint remains available to existing API clients. The practice page uses
+the session pool described above. A failed request offers a retry; an empty
 question bank offers Check for questions. The existing list endpoint is retained.
 
 Selection uses all recorded attempts in the installation. It does not yet model

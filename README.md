@@ -263,6 +263,8 @@ Current work is focused on building the persistent domain model and completing t
 
 ## Documentation
 
+See [testing and answer retries](docs/testing.md) for the isolated test database setup and retry behavior.
+
 Additional documentation is available in the `docs/` directory.
 
 The root README provides a high-level overview of the project. More detailed architecture, subsystem, database, and API documentation is maintained closer to the relevant parts of the repository.

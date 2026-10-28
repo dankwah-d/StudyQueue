@@ -21,6 +21,18 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
     Optional<Question> findById(Long id);
 
     @Query(value = ConceptStatsSql.COUNTS + """
+            SELECT q.* FROM questions q
+            LEFT JOIN concept_stats c ON c.id = q.concept_id
+            WHERE
+            """ + ConceptStatsSql.ELIGIBLE + " ORDER BY q.id", nativeQuery = true)
+    List<Question> selectEligibleQuestions(@Param("minimumAttempts") long minimumAttempts,
+                                         @Param("masteryAccuracy") double masteryAccuracy);
+
+    default List<Question> findEligibleQuestions() {
+        return selectEligibleQuestions(ConceptState.MINIMUM_MASTERY_ATTEMPTS, ConceptState.MASTERY_ACCURACY);
+    }
+
+    @Query(value = ConceptStatsSql.COUNTS + """
             , question_stats AS (
                 SELECT question_id, COUNT(*) AS total FROM attempts GROUP BY question_id
             )

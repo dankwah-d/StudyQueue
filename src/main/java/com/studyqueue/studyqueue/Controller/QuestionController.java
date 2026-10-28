@@ -1,8 +1,9 @@
 package com.studyqueue.studyqueue.Controller;
 
-import com.studyqueue.studyqueue.Service.Attempt;
+import com.studyqueue.studyqueue.Service.AnswerService;
+import com.studyqueue.studyqueue.Service.AnswerOptions;
+import java.util.concurrent.ThreadLocalRandom;
 import com.studyqueue.studyqueue.Question;
-import com.studyqueue.studyqueue.Repository.AttemptRepository;
 import com.studyqueue.studyqueue.Repository.QuestionRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,19 +12,20 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/questions")
 public class QuestionController {
 
     private final QuestionRepository repository;
-    private final AttemptRepository attemptRepository;
+    private final AnswerService answerService;
 
     public QuestionController(
             QuestionRepository repository,
-            AttemptRepository attemptRepository) {
+            AnswerService answerService) {
         this.repository = repository;
-        this.attemptRepository = attemptRepository;
+        this.answerService = answerService;
     }
 
 public record ConceptView(Long id, String name) {}
@@ -34,7 +36,7 @@ public record QuestionView(
         Map<String, String> options,
         ConceptView concept) {}
 
-    public record AnswerRequest(String optionId) {}
+    public record AnswerRequest(String optionId, UUID submissionId) {}
 
     public record AnswerResult(
             boolean correct, String correctOptionId, String explanation) {}
@@ -45,6 +47,12 @@ public List<QuestionView> getQuestions() {
             .map(this::toView)
             .toList();
 }
+
+    @GetMapping("/eligible")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public List<QuestionView> getEligibleQuestions() {
+        return repository.findEligibleQuestions().stream().map(this::toView).toList();
+    }
 
     @GetMapping("/next")
     public ResponseEntity<QuestionView> getNextQuestion() {
@@ -59,7 +67,7 @@ public List<QuestionView> getQuestions() {
         return new QuestionView(
                     q.getId(),
                     q.getPrompt(),
-                    q.getOptions(),
+                    AnswerOptions.present(q.getOptions(), q.getCorrectOptionId(), q.getDisplayOptionCount(), ThreadLocalRandom.current()),
                     q.getConcept() == null
                             ? null
                             : new ConceptView(
@@ -82,15 +90,6 @@ public List<QuestionView> getQuestions() {
                     HttpStatus.BAD_REQUEST, "Choose a valid option");
         }
 
-        boolean correct =
-                question.getCorrectOptionId().equals(request.optionId());
-
-        attemptRepository.save(
-                new Attempt(question.getId(), request.optionId(), correct));
-
-        return new AnswerResult(
-                correct,
-                question.getCorrectOptionId(),
-                question.getExplanation());
+        return answerService.submit(question, request.optionId(), request.submissionId());
     }
 }

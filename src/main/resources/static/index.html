@@ -60,6 +60,7 @@
   </main>
 
   <script src="/concept-graph.js"></script>
+  <script src="/practice-session.js"></script>
   <script>
     const viewIds = ["practice", "concept-map", "concept-stats"];
     function showView(moveFocus = false) {
@@ -209,13 +210,16 @@
 
     statsRetry.addEventListener("click", loadConceptStats);
 
+    const practiceSession = new PracticeSession();
     let question = null;
     let busy = false;
     let answered = false;
+    let pendingSubmission = null;
     const optionElements = new Map();
 
     function renderQuestion() {
       answered = false;
+      pendingSubmission = null;
       updateFocus();
       status.textContent = question.concept
         ? `Practice: ${question.concept.name}` : "Question practice";
@@ -230,7 +234,7 @@
       submit.disabled = true;
       next.hidden = true;
 
-      for (const [id, text] of Object.entries(question.options)) {
+      for (const [id, text] of shuffled(Object.entries(question.options))) {
         const label = document.createElement("label");
         const radio = document.createElement("input");
         radio.type = "radio";
@@ -263,9 +267,10 @@
       event.preventDefault();
       if (busy || answered || !question) return;
 
-      const optionId = new FormData(form).get("optionId");
+      const optionId = pendingSubmission?.optionId || new FormData(form).get("optionId");
       if (!optionId) return;
 
+      pendingSubmission ||= { submissionId: crypto.randomUUID(), optionId };
       busy = true;
       submit.disabled = true;
       feedback.replaceChildren();
@@ -279,11 +284,12 @@
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ optionId })
+            body: JSON.stringify(pendingSubmission)
           }
         );
 
         if (!response.ok) {
+          if (response.status >= 400 && response.status < 500) pendingSubmission = null;
           throw new Error(`Answer request failed (${response.status}).`);
         }
 
@@ -327,7 +333,10 @@
       } catch (error) {
         feedback.removeAttribute("data-result");
         feedback.textContent = `${error.message} Please try again.`;
-        answerHint.textContent = "Your answer wasn't saved. Try again.";
+        answerHint.textContent = pendingSubmission
+          ? "Save status unknown. Retry to confirm this answer."
+          : "Your answer was rejected. Choose an answer and try again.";
+        for (const option of optionElements.values()) option.radio.disabled = !!pendingSubmission;
       } finally {
         busy = false;
         submit.disabled = answered;
@@ -344,12 +353,13 @@
       submit.disabled = true;
       status.textContent = "Loading next question…";
       try {
-        const response = await fetch("/api/questions/next");
+        const response = await fetch("/api/questions/eligible");
         if (!response.ok) {
           throw new Error(`Question request failed (${response.status}).`);
         }
 
-        if (response.status === 204) {
+        const delivered = practiceSession.next(await response.json());
+        if (!delivered) {
           question = null;
           updateFocus();
           answered = true;
@@ -361,7 +371,7 @@
           next.textContent = "Check for questions";
           return;
         }
-        question = await response.json();
+        question = delivered;
         renderQuestion();
         prompt.focus({ preventScroll: true });
       } catch (error) {

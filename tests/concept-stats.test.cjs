@@ -33,24 +33,27 @@ function setup(statsResponses, questionResponses = [], answerResponses = []) {
     return elements.get(selector);
   };
   const calls = [];
+  const answerBodies = [];
   let selectedOption = 'A';
   const window = { location: { hash: '' }, listeners: {},
     addEventListener(event, callback) { this.listeners[event] = callback; }, scrollTo() {} };
   const context = vm.createContext({
     window,
+    crypto: require("node:crypto").webcrypto,
     document: { querySelector: get, createElement: () => new Element(),
       createElementNS: (namespace, tag) => Object.assign(new Element(), { tagName: tag }) },
     FormData: class { get() { return selectedOption; } },
-    fetch: async (url) => {
+    fetch: async (url, options) => {
       calls.push(url);
-      if (url === '/api/questions/next') {
+      if (url === '/api/questions/eligible') {
         const response = questionResponses.shift();
         if (response instanceof Error) throw response;
-        if (response === null) return { ok: true, status: 204 };
-        return { ok: true, json: async () => response ||
-          { id: 1, prompt: 'Question', options: { A: 'Yes', B: 'No' } } };
+        if (response === null) return { ok: true, json: async () => [] };
+        return { ok: true, json: async () => Array.isArray(response) ? response : [response ||
+          { id: 1, prompt: 'Question', options: { A: 'Yes', B: 'No' } }] };
       }
       if (url.endsWith('/answer')) {
+        answerBodies.push(JSON.parse(options.body));
         const result = answerResponses.shift();
         if (result instanceof Error) throw result;
         if (result?.ok === false) return result;
@@ -61,9 +64,10 @@ function setup(statsResponses, questionResponses = [], answerResponses = []) {
       return { ok: true, json: async () => result };
     }
   });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/main/resources/static/practice-session.js"), "utf8"), context);
   vm.runInContext(graphScript, context);
   vm.runInContext(script, context);
-  return { get, calls, select(id) { selectedOption = id; get('#answer-form').listeners.change(); },
+  return { get, calls, answerBodies, select(id) { selectedOption = id; get('#answer-form').listeners.change(); },
     navigate(id) { window.location.hash = `#${id}`; window.listeners.hashchange(); } };
 }
 
@@ -138,7 +142,7 @@ test('requests a new recommendation after answering and retries failures', async
   assert.equal(get('#prompt').textContent, 'Recommended question');
   assert.equal(get('#status').textContent, 'Practice: Threads');
   assert.equal(get('#next').hidden, true);
-  assert.equal(calls.filter(url => url === '/api/questions/next').length, 3);
+  assert.equal(calls.filter(url => url === '/api/questions/eligible').length, 3);
 });
 
 test('no available questions disables answers and permits checking again', async () => {
@@ -249,7 +253,7 @@ test('study views switch without replacing the current question or submitting an
   assert.equal(get('#prompt').textContent, 'Question');
   assert.equal(get('#submit').disabled, false);
   assert.equal(calls.filter(url => url.endsWith('/answer')).length, 0);
-  assert.equal(calls.filter(url => url === '/api/questions/next').length, 1);
+  assert.equal(calls.filter(url => url === '/api/questions/eligible').length, 1);
 });
 
 test('incorrect answer reveals the correct choice and explanation, then resets for the next question', async () => {
@@ -260,7 +264,8 @@ test('incorrect answer reveals the correct choice and explanation, then resets f
   select('A');
   await get('#answer-form').listeners.submit({ preventDefault() {} });
   await flush();
-  const [first, second] = get('#options').children;
+  const first = get('#options').children.find(label => label.children[0].value === 'A');
+  const second = get('#options').children.find(label => label.children[0].value === 'B');
   assert.equal(first.attributes['data-outcome'], 'incorrect');
   assert.equal(second.attributes['data-outcome'], 'correct');
   assert.equal(first.children[0].disabled, true);
@@ -294,7 +299,45 @@ test('a rejected answer can be retried without disabling options or creating dup
   await get('#answer-form').listeners.submit({ preventDefault() {} });
   await flush();
   assert.equal(get('#feedback').attributes['data-result'], 'correct');
-  assert.equal(get('#options').children[0].attributes['data-outcome'], 'correct');
+  assert.equal(get('#options').children.find(label => label.children[0].value === 'A').attributes['data-outcome'], 'correct');
   await get('#answer-form').listeners.submit({ preventDefault() {} });
   assert.equal(calls.filter(url => url.endsWith('/answer')).length, 2);
+});
+
+
+test('lost answer responses reuse the original submission and choice on retry', async () => {
+  const { get, select, answerBodies } = setup([stats(), stats()], [], [new Error('Connection lost')]);
+  await flush();
+  select('A');
+  await get('#answer-form').listeners.submit({ preventDefault() {} });
+  assert.match(get('#answer-hint').textContent, /unknown/);
+  assert.equal(get('#options').children[0].children[0].disabled, true);
+  select('B');
+  await get('#answer-form').listeners.submit({ preventDefault() {} });
+  assert.equal(answerBodies.length, 2);
+  assert.deepEqual(answerBodies[0], answerBodies[1]);
+  assert.equal(answerBodies[1].optionId, 'A');
+  await get('#next').listeners.click();
+  select('A');
+  await get('#answer-form').listeners.submit({ preventDefault() {} });
+  assert.notEqual(answerBodies[2].submissionId, answerBodies[0].submissionId);
+});
+
+
+test('practice advances through the eligible pool without duplicates and retains stable answer IDs', async () => {
+  const eligible = [1, 2, 3].map(id => ({ id, prompt: `Question ${id}`, options: { '10': 'Yes', '20': 'No', Z: 'Maybe' } }));
+  const { get, select, answerBodies } = setup([stats(), stats(), stats(), stats()],
+    [eligible, [...eligible].reverse(), eligible]);
+  await flush();
+  const prompts = [];
+  for (let i = 0; i < 3; i++) {
+    prompts.push(get('#prompt').textContent);
+    assert.equal(get('#options').children.length, 3);
+    assert.deepEqual(new Set(get('#options').children.map(label => label.children[0].value)), new Set(['10', '20', 'Z']));
+    select('20');
+    await get('#answer-form').listeners.submit({ preventDefault() {} });
+    if (i < 2) await get('#next').listeners.click();
+  }
+  assert.equal(new Set(prompts).size, 3);
+  assert.ok(answerBodies.every(body => body.optionId === '20'));
 });

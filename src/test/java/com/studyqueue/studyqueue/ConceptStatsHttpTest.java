@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@org.springframework.test.context.ActiveProfiles("test")
 @SpringBootTest
 class ConceptStatsHttpTest {
     @Autowired
@@ -23,6 +24,45 @@ class ConceptStatsHttpTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Test
+    @Transactional
+    void deduplicatesRetriesRejectsKeyReuseAndAllowsNewAttempts() throws Exception {
+        Long questionId = jdbc.queryForObject("""
+                INSERT INTO questions(prompt, options, correct_option_id)
+                VALUES ('Retry test', '{"A":"Yes","B":"No"}'::jsonb, 'A') RETURNING id
+                """, Long.class);
+        MockMvc http = MockMvcBuilders.webAppContextSetup(context).build();
+        String key = java.util.UUID.randomUUID().toString();
+        String body = "{\"optionId\":\"A\",\"submissionId\":\"" + key + "\"}";
+        for (int retry = 0; retry < 2; retry++) {
+            http.perform(post("/api/questions/{id}/answer", questionId)
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(true))
+                    .andExpect(jsonPath("$.correctOptionId").value("A"));
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(1L, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM attempts WHERE question_id = ?", Long.class, questionId));
+        // A new identifier represents intentional further practice.
+        http.perform(post("/api/questions/{id}/answer", questionId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body.replace(key, java.util.UUID.randomUUID().toString())))
+                .andExpect(status().isOk());
+        org.junit.jupiter.api.Assertions.assertEquals(2L, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM attempts WHERE question_id = ?", Long.class, questionId));
+        long total = jdbc.queryForObject("SELECT COUNT(*) FROM attempts", Long.class);
+        long correct = jdbc.queryForObject("SELECT COUNT(*) FROM attempts WHERE correct", Long.class);
+        http.perform(get("/api/stats"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalAttempts").value(total))
+                .andExpect(jsonPath("$.correctAnswers").value(correct));
+        // Last: a conflict marks this test transaction rollback-only.
+        http.perform(post("/api/questions/{id}/answer", questionId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body.replace("\"A\"", "\"B\"")))
+                .andExpect(status().isConflict());
+    }
 
     @Test
     @Transactional

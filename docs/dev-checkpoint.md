@@ -1,5 +1,14 @@
 # StudyQueue checkpoint
-Updated: 2026-10-20 (America/New_York)
+Updated: 2026-10-28 (America/New_York)
+
+Current slice (2026-10-28):
+- Practice uses an eligible question pool and a stable shuffled queue per page, preventing repeats until exhaustion. Newly unlocked questions append; relocked questions are removed before delivery.
+- Options shuffle per presentation using stable IDs. V7 adds optional display_option_count for sampling distractor pools; NULL preserves every existing choice. Existing IDs, records, explanations, map rendering, and attempt statistics are retained.
+- The existing prerequisite graph and shared SQL drive pool eligibility. No map rebuild, deployment, Docker, or CI changes were made in this feature slice.
+- Audit fixes from the preceding slice remain in place (answer retry IDs, atomic global counts, isolated test profile, dependency cleanup).
+- Verified: 26 Maven tests pass against disposable PostgreSQL 18, including existing selection and statistics checks, new eligible-pool unlock/relock checks, answer-pool selection, stable-ID grading, and retry deduplication. All 23 Node checks pass, including stable queues, shuffle behavior, exhaustion, new eligibility, numeric option IDs, and existing map behavior. git diff --check passes. Browser visual testing was not performed.
+
+The notes below are the prior 2026-10-20 checkpoint, retained as history. Current delivery behavior is documented in question-selection.md and question-bank.md.
 
 Finished:
 - Questions expose concepts; answer submission evaluates and records attempts.

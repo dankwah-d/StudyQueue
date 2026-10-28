@@ -24,6 +24,13 @@ public class Question {
     @Column(name = "correct_option_id", nullable = false)
     private String correctOptionId;
 
+    @Column(name = "display_option_count")
+    private Integer displayOptionCount;
+
+    public Integer getDisplayOptionCount() {
+        return displayOptionCount;
+    }
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "concept_id")
     private Concept concept;
