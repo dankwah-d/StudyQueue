@@ -18,9 +18,8 @@ test('session consumes a shuffled stable queue without duplicates before exhaust
   assert.equal(session.next([...eligible].reverse()).id, 3);
   assert.equal(session.next(eligible).id, 4);
   assert.equal(session.next(eligible).id, 1);
-  const secondCycle = Array.from({ length: 4 }, () => session.next(eligible).id);
-  assert.equal(new Set(secondCycle).size, 4);
-  assert.notEqual(secondCycle[0], 1);
+  assert.equal(session.next(eligible), null);
+  assert.equal(session.total, 4);
 });
 
 test('newly unlocked questions append without repeating seen questions', () => {
@@ -37,7 +36,7 @@ test('relocked questions are removed and can return after unlocking', () => {
   assert.equal(session.next(pool(1, 2, 3)).id, 2);
   assert.equal(session.next([]), null);
   assert.equal(session.next(pool(9)).id, 9);
-  assert.equal(session.next(pool(9)).id, 9);
+  assert.equal(session.next(pool(9)), null);
 });
 
 test('answer shuffling preserves stable IDs and variable choice counts', () => {
@@ -46,4 +45,14 @@ test('answer shuffling preserves stable IDs and variable choice counts', () => {
     assert.equal(entries.length, Object.keys(options).length);
     for (const [id, text] of entries) assert.equal(options[id], text);
   }
+});
+
+
+test('explicit order is deterministic and a fresh session can reshuffle', () => {
+  const ordered = new PracticeSession(() => 0, 'ordered');
+  assert.deepEqual([ordered.next(pool(3, 1, 2)).id, ordered.next(pool(2, 3, 1)).id,
+    ordered.next(pool(1, 2, 3)).id], [1, 2, 3]);
+  const first = new PracticeSession(() => 0);
+  const second = new PracticeSession(() => 0.99);
+  assert.notEqual(first.next(pool(1, 2, 3)).id, second.next(pool(1, 2, 3)).id);
 });

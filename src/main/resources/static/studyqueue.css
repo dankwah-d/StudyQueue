@@ -245,3 +245,11 @@ td[data-state="NOT_STARTED"], .availability-locked { color: #72806b; }
   .data-recovery { flex-direction: column; align-items: stretch; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
+
+.session-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; margin-bottom: 18px; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+.session-controls label { display: grid; gap: 7px; font-size: 13px; font-weight: 600; flex: 1 1 200px; }
+.session-controls select { font: inherit; color: inherit; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 12px; width: 100%; }
+.session-controls p { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--muted); }
+.session-progress { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 18px; font-size: 13px; }
+.session-progress progress { flex: 1; min-width: 120px; height: 10px; accent-color: #267663; }
+@media (max-width: 600px) { .session-controls { gap: 12px; padding: 16px; } .session-controls button { width: 100%; } }

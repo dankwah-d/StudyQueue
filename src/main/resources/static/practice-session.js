@@ -7,13 +7,15 @@ function shuffled(values, random = Math.random) {
   return result;
 }
 
-// One page lifetime is a session. Refreshing eligibility never reorders pending IDs.
+// Refreshing eligibility never reorders pending IDs or silently starts another session.
 class PracticeSession {
-  constructor(random = Math.random) {
+  constructor(random = Math.random, order = "random") {
     this.random = random;
+    this.order = order;
     this.pending = [];
     this.seen = new Set();
     this.lastId = null;
+    this.total = 0;
   }
 
   next(eligible) {
@@ -21,15 +23,9 @@ class PracticeSession {
     this.pending = this.pending.filter(id => byId.has(id) && !this.seen.has(id));
     const queued = new Set(this.pending);
     const additions = [...byId.keys()].filter(id => !this.seen.has(id) && !queued.has(id));
-    this.pending.push(...shuffled(additions, this.random));
-    if (!this.pending.length && byId.size) {
-      this.seen.clear();
-      this.pending = shuffled(byId.keys(), this.random);
-      // Avoid an immediate repeat at a cycle boundary when alternatives exist.
-      if (this.pending.length > 1 && this.pending[0] === this.lastId) {
-        [this.pending[0], this.pending[1]] = [this.pending[1], this.pending[0]];
-      }
-    }
+    this.pending.push(...(this.order === "ordered"
+      ? additions.sort((a, b) => a - b) : shuffled(additions, this.random)));
+    this.total = this.seen.size + this.pending.length;
     if (!this.pending.length) return null;
     const id = this.pending.shift();
     this.seen.add(id);

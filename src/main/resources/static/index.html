@@ -19,7 +19,14 @@
   </header>
   <main id="main-content" tabindex="-1">
     <section id="practice" class="view study-view" aria-labelledby="practice-heading">
-      <div class="view-heading"><div><p class="eyebrow">OPERATING SYSTEMS</p><h1 id="practice-heading">Let's work through it.</h1></div><span class="mode-label"><span aria-hidden="true">&#10022;</span> Adaptive practice</span></div>
+      <div class="view-heading"><div><p class="eyebrow">OPERATING SYSTEMS</p><h1 id="practice-heading">Let's work through it.</h1></div><span class="mode-label"><span aria-hidden="true">&#10022;</span> Session practice</span></div>
+      <div class="session-controls" aria-label="Practice session settings">
+        <label>Concept<select id="session-concept"><option value="">All available concepts</option></select></label>
+        <label>Question order<select id="session-order"><option value="random">Randomized</option><option value="ordered">Question ID (ascending)</option></select></label>
+        <button id="new-session" type="button">New session</button>
+        <p>Settings apply when you start a new session. Recorded attempts are kept.</p>
+      </div>
+      <div class="session-progress"><span id="session-progress" role="status">Preparing session?</span><progress id="session-meter" max="1" value="0" aria-label="Session answers completed"></progress></div>
       <div class="study-layout">
         <div class="question-shell">
           <div class="question-topline"><p id="status" class="topic-label" role="status">Finding your next question&hellip;</p><span class="question-kind">Choose one answer</span></div>
@@ -33,7 +40,7 @@
           <div class="study-actions"><p id="answer-hint">Take your time. Choose the answer that fits best.</p><button id="submit" form="answer-form" type="submit" disabled>Check answer <span aria-hidden="true">&#8594;</span></button><button id="next" type="button" hidden>Next question <span aria-hidden="true">&#8594;</span></button></div>
         </div>
         <aside class="study-sidebar" aria-label="Study context">
-          <div class="context-card"><span class="section-symbol" aria-hidden="true">&#9673;</span><p class="eyebrow">IN FOCUS</p><h2 id="focus-concept">Finding your concept</h2><p id="focus-detail">Questions adapt to your recorded practice.</p><a class="inline-link" href="#concept-map">See the connections <span aria-hidden="true">&#8599;</span></a></div>
+          <div class="context-card"><span class="section-symbol" aria-hidden="true">&#9673;</span><p class="eyebrow">IN FOCUS</p><h2 id="focus-concept">Finding your concept</h2><p id="focus-detail">Available questions follow prerequisite mastery.</p><a class="inline-link" href="#concept-map">See the connections <span aria-hidden="true">&#8599;</span></a></div>
           <div class="study-tip"><span aria-hidden="true">&#10035;</span><h3>Understanding comes first.</h3><p>Check your answer, read the explanation, then give the next question a go.</p></div>
           <p class="quiet-note">No timer. Room to think.</p>
         </aside>
@@ -111,7 +118,7 @@
       const stats = latestStats.find(item => item.conceptId === concept?.id);
       focusDetail.textContent = stats
         ? `${stateNames[stats.state] || "Unknown"} · ${stats.totalAttempts} attempts · ${stats.accuracyPercent.toFixed(1)}% accuracy`
-        : "Questions adapt to your recorded practice.";
+        : "Available questions follow prerequisite mastery.";
     }
     let statsRequest = 0;
 
@@ -133,6 +140,20 @@
         statsRows.replaceChildren();
         conceptList.replaceChildren();
         latestStats = stats;
+        const selectedConcept = sessionConcept.value;
+        sessionConcept.replaceChildren();
+        const allConcepts = document.createElement("option");
+        allConcepts.value = "";
+        allConcepts.textContent = "All available concepts";
+        sessionConcept.append(allConcepts);
+        for (const concept of stats) {
+          const option = document.createElement("option");
+          option.value = String(concept.conceptId);
+          option.textContent = concept.conceptName + (concept.eligible ? "" : " (locked)");
+          option.disabled = !concept.eligible;
+          sessionConcept.append(option);
+        }
+        sessionConcept.value = selectedConcept || "";
         updateFocus();
         for (const concept of stats) {
           const row = document.createElement("tr");
@@ -210,7 +231,19 @@
 
     statsRetry.addEventListener("click", loadConceptStats);
 
-    const practiceSession = new PracticeSession();
+    const sessionConcept = document.querySelector("#session-concept");
+    const sessionOrder = document.querySelector("#session-order");
+    const newSession = document.querySelector("#new-session");
+    const sessionProgress = document.querySelector("#session-progress");
+    const sessionMeter = document.querySelector("#session-meter");
+    let practiceSession = new PracticeSession();
+    let activeConcept = "";
+    let completed = 0;
+    function updateProgress() {
+      sessionProgress.textContent = `${completed} of ${practiceSession.total} answered`;
+      sessionMeter.max = Math.max(1, practiceSession.total);
+      sessionMeter.value = completed;
+    }
     let question = null;
     let busy = false;
     let answered = false;
@@ -221,6 +254,7 @@
       answered = false;
       pendingSubmission = null;
       updateFocus();
+      updateProgress();
       status.textContent = question.concept
         ? `Practice: ${question.concept.name}` : "Question practice";
       prompt.textContent = question.prompt;
@@ -272,6 +306,8 @@
 
       pendingSubmission ||= { submissionId: crypto.randomUUID(), optionId };
       busy = true;
+      newSession.disabled = true;
+      for (const option of optionElements.values()) option.radio.disabled = true;
       submit.disabled = true;
       feedback.replaceChildren();
       feedback.removeAttribute("data-result");
@@ -295,6 +331,8 @@
 
         const result = await response.json();
         answered = true;
+        completed++;
+        updateProgress();
         void loadConceptStats();
 
         const heading = document.createElement("strong");
@@ -339,16 +377,19 @@
         for (const option of optionElements.values()) option.radio.disabled = !!pendingSubmission;
       } finally {
         busy = false;
+        newSession.disabled = !!pendingSubmission && !answered;
         submit.disabled = answered;
         submit.textContent = "Check answer →";
       }
     });
 
-    next.addEventListener("click", loadQuestion);
+    next.addEventListener("click", () => loadQuestion());
+    newSession.addEventListener("click", () => loadQuestion(true));
 
-    async function loadQuestion() {
+    async function loadQuestion(restart = false) {
       if (busy) return;
       busy = true;
+      newSession.disabled = true;
       next.disabled = true;
       submit.disabled = true;
       status.textContent = "Loading next question…";
@@ -358,17 +399,32 @@
           throw new Error(`Question request failed (${response.status}).`);
         }
 
-        const delivered = practiceSession.next(await response.json());
+        const pool = await response.json();
+        if (!Array.isArray(pool)) throw new Error("Invalid question pool.");
+        if (restart) {
+          practiceSession = new PracticeSession(Math.random, sessionOrder.value || "random");
+          activeConcept = sessionConcept.value || "";
+          completed = 0;
+        }
+        const eligible = pool.filter(item => !activeConcept || String(item.concept?.id) === activeConcept);
+        const delivered = practiceSession.next(eligible);
+        updateProgress();
         if (!delivered) {
           question = null;
           updateFocus();
           answered = true;
-          prompt.textContent = "";
+          prompt.textContent = practiceSession.seen.size ? "Session complete. Well done." : "No questions available.";
           options.replaceChildren();
           feedback.replaceChildren();
-          status.textContent = "No eligible questions available. Questions may be missing or require prerequisite mastery.";
+          feedback.removeAttribute("data-result");
+          submit.hidden = true;
+          pendingSubmission = null;
+          answerHint.textContent = "Start a new session to practice again. Your recorded attempts are kept.";
+          status.textContent = practiceSession.seen.size
+            ? "You have worked through every available question in this session."
+            : "No eligible questions available. Questions may be missing or require prerequisite mastery.";
           next.hidden = false;
-          next.textContent = "Check for questions";
+          next.textContent = practiceSession.seen.size ? "Check for newly unlocked questions" : "Check for questions";
           return;
         }
         question = delivered;
@@ -380,6 +436,7 @@
         next.textContent = "Retry next question";
       } finally {
         busy = false;
+        newSession.disabled = !!pendingSubmission && !answered;
         next.disabled = false;
       }
     }

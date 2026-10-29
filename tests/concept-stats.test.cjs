@@ -257,7 +257,7 @@ test('study views switch without replacing the current question or submitting an
 });
 
 test('incorrect answer reveals the correct choice and explanation, then resets for the next question', async () => {
-  const { get, select } = setup([stats(), stats()], [], [
+  const { get, select } = setup([stats(), stats()], [undefined, { id: 2, prompt: 'Next', options: { A: 'Yes', B: 'No' } }], [
     { correct: false, correctOptionId: 'B', explanation: 'The explanation for B.' }
   ]);
   await flush();
@@ -317,7 +317,7 @@ test('lost answer responses reuse the original submission and choice on retry', 
   assert.equal(answerBodies.length, 2);
   assert.deepEqual(answerBodies[0], answerBodies[1]);
   assert.equal(answerBodies[1].optionId, 'A');
-  await get('#next').listeners.click();
+  await get('#new-session').listeners.click();
   select('A');
   await get('#answer-form').listeners.submit({ preventDefault() {} });
   assert.notEqual(answerBodies[2].submissionId, answerBodies[0].submissionId);
@@ -340,4 +340,39 @@ test('practice advances through the eligible pool without duplicates and retains
   }
   assert.equal(new Set(prompts).size, 3);
   assert.ok(answerBodies.every(body => body.optionId === '20'));
+});
+
+
+test('completion is explicit, explanation survives until continue, and restart preserves stats', async () => {
+  const { get, calls } = setup([stats(), stats(4, 3, 75)]);
+  await flush();
+  const submit = () => get('#answer-form').listeners.submit({ preventDefault() {} });
+  await Promise.all([submit(), submit()]);
+  await flush();
+  assert.equal(calls.filter(url => url.endsWith('/answer')).length, 1);
+  assert.equal(get('#feedback').children[1].textContent, 'Explanation');
+  assert.equal(get('#session-progress').textContent, '1 of 1 answered');
+  await get('#next').listeners.click();
+  assert.match(get('#prompt').textContent, /Session complete/);
+  assert.equal(get('#submit').hidden, true);
+  assert.equal(get('#overview-attempts').textContent, '4');
+  await get('#new-session').listeners.click();
+  assert.equal(get('#prompt').textContent, 'Question');
+  assert.equal(get('#session-progress').textContent, '0 of 1 answered');
+  assert.equal(get('#overview-attempts').textContent, '4');
+});
+
+test('selected concept uses explicit ascending order on new session', async () => {
+  const pool = [3, 2, 1].map(id => ({ id, prompt: `Q${id}`, options: { A: 'Yes' },
+    concept: { id: id === 3 ? 2 : 1, name: 'Processes' } }));
+  const { get } = setup([stats(), stats()], [pool, pool, pool]);
+  await flush();
+  get('#session-concept').value = '1';
+  get('#session-order').value = 'ordered';
+  await get('#new-session').listeners.click();
+  assert.equal(get('#prompt').textContent, 'Q1');
+  assert.equal(get('#session-progress').textContent, '0 of 2 answered');
+  await get('#answer-form').listeners.submit({ preventDefault() {} });
+  await get('#next').listeners.click();
+  assert.equal(get('#prompt').textContent, 'Q2');
 });
