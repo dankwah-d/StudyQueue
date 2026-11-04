@@ -32,11 +32,11 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
         return selectEligibleQuestions(ConceptState.MINIMUM_MASTERY_ATTEMPTS, ConceptState.MASTERY_ACCURACY);
     }
 
-    @Query(value = ConceptStatsSql.COUNTS + """
+    String RANKED_QUESTIONS = ConceptStatsSql.COUNTS + """
             , question_stats AS (
                 SELECT question_id, COUNT(*) AS total FROM attempts GROUP BY question_id
             )
-            SELECT q.id FROM questions q
+            SELECT q.* FROM questions q
             LEFT JOIN concept_stats c ON c.id = q.concept_id
             LEFT JOIN question_stats a ON a.question_id = q.id
             WHERE
@@ -48,12 +48,22 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
                 ELSE 1 END,
                 COALESCE(c.correct::numeric / NULLIF(c.total, 0), 0),
                 COALESCE(c.total, 0), COALESCE(a.total, 0), q.id
-            LIMIT 1
-            """, nativeQuery = true)
-    Optional<Long> selectNextQuestionId(@Param("minimumAttempts") long minimumAttempts,
+            """;
+
+    @Query(value = RANKED_QUESTIONS, nativeQuery = true)
+    List<Question> selectRecommendedQuestions(@Param("minimumAttempts") long minimumAttempts,
+                                               @Param("masteryAccuracy") double masteryAccuracy);
+
+    default List<Question> findRecommendedQuestions() {
+        return selectRecommendedQuestions(ConceptState.MINIMUM_MASTERY_ATTEMPTS, ConceptState.MASTERY_ACCURACY);
+    }
+
+    @Query(value = RANKED_QUESTIONS + " LIMIT 1", nativeQuery = true)
+    Optional<Question> selectNextQuestion(@Param("minimumAttempts") long minimumAttempts,
                                       @Param("masteryAccuracy") double masteryAccuracy);
 
     default Optional<Long> findNextQuestionId() {
-        return selectNextQuestionId(ConceptState.MINIMUM_MASTERY_ATTEMPTS, ConceptState.MASTERY_ACCURACY);
+        return selectNextQuestion(ConceptState.MINIMUM_MASTERY_ATTEMPTS, ConceptState.MASTERY_ACCURACY)
+                .map(Question::getId);
     }
 }

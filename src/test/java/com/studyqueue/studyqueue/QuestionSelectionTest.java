@@ -177,6 +177,90 @@ class QuestionSelectionTest {
                 "SELECT COUNT(*) FROM questions q, jsonb_object_keys(q.options) WHERE q.id = ?", Integer.class, id));
     }
 
+    @Test
+    void recommendedPoolSharesRankingAndReactsToAnswersAndPrerequisites() throws Exception {
+        Long fallback = question(null);
+        Long rootConcept = concept("Root");
+        Long root = question(rootConcept);
+        Long other = question(concept("Other"));
+        Long childConcept = concept("Child");
+        Long child = question(childConcept);
+        jdbc.update("INSERT INTO concept_prerequisites VALUES (?, ?)", childConcept, rootConcept);
+        expectRecommended(root, other, fallback);
+        submit(root, "B");
+        expectRecommended(other, root, fallback);
+        for (int i = 0; i < 5; i++) submit(root, "A");
+        expectRecommended(other, child, root, fallback);
+        submit(root, "B");
+        expectRecommended(other, root, fallback);
+        http.perform(get("/api/questions/recommended"))
+                .andExpect(jsonPath("$[0].correctOptionId").doesNotExist())
+                .andExpect(jsonPath("$[0].explanation").doesNotExist());
+    }
+
+    private void expectRecommended(Long... ids) throws Exception {
+        http.perform(get("/api/questions/recommended"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].id", contains(java.util.Arrays.stream(ids)
+                        .map(Long::intValue).toArray(Integer[]::new))));
+        expectNext(ids[0]);
+    }
+
+    @Test
+    void topologicalPoolOrdersPrerequisitesBeforeDependentsWithStableTies() throws Exception {
+        Long childConcept = concept("Child created first");
+        Long child = question(childConcept);
+        Long rootConcept = concept("Root created later");
+        Long root = question(rootConcept);
+        Long secondRootQuestion = question(rootConcept);
+        Long independent = question(concept("Independent"));
+        Long fallback = question(null);
+        jdbc.update("INSERT INTO concept_prerequisites VALUES (?, ?)", childConcept, rootConcept);
+        expectTopological(root, secondRootQuestion, independent, fallback);
+        for (int i = 0; i < 5; i++) submit(root, "A");
+        expectTopological(root, secondRootQuestion, child, independent, fallback);
+        submit(root, "B");
+        submit(root, "B");
+        expectTopological(root, secondRootQuestion, independent, fallback);
+    }
+
+    @Test
+    void topologicalPoolRejectsCyclesIncludingConceptsWithoutQuestions() throws Exception {
+        Long first = concept("First");
+        Long second = concept("Second");
+        question(null);
+        jdbc.update("INSERT INTO concept_prerequisites VALUES (?, ?), (?, ?)",
+                first, second, second, first);
+        http.perform(get("/api/questions/topological")).andExpect(status().isConflict());
+    }
+
+    @Test
+    void topologicalPoolHandlesEmptyGraphAndMultiplePrerequisites() throws Exception {
+        http.perform(get("/api/questions/topological"))
+                .andExpect(status().isOk()).andExpect(content().json("[]"));
+        Long childConcept = concept("Child");
+        Long child = question(childConcept);
+        Long firstConcept = concept("First");
+        Long first = question(firstConcept);
+        Long secondConcept = concept("Second");
+        Long second = question(secondConcept);
+        jdbc.update("INSERT INTO concept_prerequisites VALUES (?, ?), (?, ?)",
+                childConcept, firstConcept, childConcept, secondConcept);
+        for (int i = 0; i < 5; i++) submit(first, "A");
+        expectTopological(first, second);
+        for (int i = 0; i < 5; i++) submit(second, "A");
+        expectTopological(first, second, child);
+    }
+
+    private void expectTopological(Long... ids) throws Exception {
+        http.perform(get("/api/questions/topological"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].id", contains(java.util.Arrays.stream(ids)
+                        .map(Long::intValue).toArray(Integer[]::new))))
+                .andExpect(jsonPath("$[*].correctOptionId").isEmpty())
+                .andExpect(jsonPath("$[*].explanation").isEmpty());
+    }
+
     private void submit(Long question, String option) throws Exception {
         http.perform(post("/api/questions/{id}/answer", question)
                         .contentType(MediaType.APPLICATION_JSON)

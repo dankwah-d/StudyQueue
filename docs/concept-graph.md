@@ -24,3 +24,10 @@ Verification: `node --test tests/concept-stats.test.cjs` covers arrows, labels,
 layers, disconnected roots, multiple prerequisites, state/availability refresh,
 empty data, cycles, missing prerequisites, and failure/retry. Browser visual and
 screen-reader checks remain outstanding because no browser connection is available.
+
+
+Practice also offers Prerequisite order (topological). Its backend sort uses the
+same edge direction as the map: prerequisites before dependents. The map groups
+nodes into depth layers by name; practice breaks ready-node ties by concept ID
+and question ties by question ID. Both detect cycles. See question-selection.md
+for the practice API and eligibility contract.

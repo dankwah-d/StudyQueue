@@ -22,7 +22,7 @@
       <div class="view-heading"><div><p class="eyebrow">OPERATING SYSTEMS</p><h1 id="practice-heading">Let's work through it.</h1></div><span class="mode-label"><span aria-hidden="true">&#10022;</span> Session practice</span></div>
       <div class="session-controls" aria-label="Practice session settings">
         <label>Concept<select id="session-concept"><option value="">All available concepts</option></select></label>
-        <label>Question order<select id="session-order"><option value="random">Randomized</option><option value="ordered">Question ID (ascending)</option></select></label>
+        <label>Question order<select id="session-order"><option value="random">Randomized</option><option value="recommended">Recommended (adapts after answers)</option><option value="topological">Prerequisite order (topological)</option><option value="ordered">Question ID (ascending)</option></select></label>
         <button id="new-session" type="button">New session</button>
         <p>Settings apply when you start a new session. Recorded attempts are kept.</p>
       </div>
@@ -394,9 +394,14 @@
       submit.disabled = true;
       status.textContent = "Loading next question…";
       try {
-        const response = await fetch("/api/questions/eligible");
+        const requestedOrder = restart ? (sessionOrder.value || "random") : practiceSession.order;
+        const response = await fetch(requestedOrder === "recommended"
+          ? "/api/questions/recommended" : requestedOrder === "topological"
+            ? "/api/questions/topological" : "/api/questions/eligible");
         if (!response.ok) {
-          throw new Error(`Question request failed (${response.status}).`);
+          throw new Error(requestedOrder === "topological" && response.status === 409
+            ? "Prerequisite order unavailable: the concept graph contains a cycle or missing concept."
+            : `Question request failed (${response.status}).`);
         }
 
         const pool = await response.json();

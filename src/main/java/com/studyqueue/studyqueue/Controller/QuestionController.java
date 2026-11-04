@@ -2,6 +2,7 @@ package com.studyqueue.studyqueue.Controller;
 
 import com.studyqueue.studyqueue.Service.AnswerService;
 import com.studyqueue.studyqueue.Service.AnswerOptions;
+import com.studyqueue.studyqueue.Service.TopologicalQuestions;
 import java.util.concurrent.ThreadLocalRandom;
 import com.studyqueue.studyqueue.Question;
 import com.studyqueue.studyqueue.Repository.QuestionRepository;
@@ -20,12 +21,14 @@ public class QuestionController {
 
     private final QuestionRepository repository;
     private final AnswerService answerService;
+    private final TopologicalQuestions topologicalQuestions;
 
     public QuestionController(
             QuestionRepository repository,
-            AnswerService answerService) {
+            AnswerService answerService, TopologicalQuestions topologicalQuestions) {
         this.repository = repository;
         this.answerService = answerService;
+        this.topologicalQuestions = topologicalQuestions;
     }
 
 public record ConceptView(Long id, String name) {}
@@ -52,6 +55,17 @@ public List<QuestionView> getQuestions() {
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<QuestionView> getEligibleQuestions() {
         return repository.findEligibleQuestions().stream().map(this::toView).toList();
+    }
+
+    @GetMapping("/topological")
+    public List<QuestionView> getTopologicalQuestions() {
+        return topologicalQuestions.findEligible().stream().map(this::toView).toList();
+    }
+
+    @GetMapping("/recommended")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public List<QuestionView> getRecommendedQuestions() {
+        return repository.findRecommendedQuestions().stream().map(this::toView).toList();
     }
 
     @GetMapping("/next")

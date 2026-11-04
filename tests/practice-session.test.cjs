@@ -56,3 +56,28 @@ test('explicit order is deterministic and a fresh session can reshuffle', () => 
   const second = new PracticeSession(() => 0.99);
   assert.notEqual(first.next(pool(1, 2, 3)).id, second.next(pool(1, 2, 3)).id);
 });
+
+
+test('recommended order adapts unseen questions and reconciles unlocks without repeats', () => {
+  const session = new PracticeSession(() => 0, 'recommended');
+  assert.equal(session.next(pool(3, 1, 2)).id, 3);
+  // Ranking changes after an answer; newly unlocked 4 can take priority.
+  assert.equal(session.next(pool(4, 2, 3, 1)).id, 4);
+  // Question 2 relocks; seen 3 and 4 remain excluded.
+  assert.equal(session.next(pool(3, 1, 4)).id, 1);
+  assert.equal(session.next(pool(3, 1, 4)), null);
+  assert.equal(session.total, 3);
+  assert.equal(session.next(pool(2, 3, 1, 4)).id, 2);
+  assert.equal(session.next(pool(2, 3, 1, 4)), null);
+});
+
+
+test('topological sessions preserve server order and insert newly unlocked unseen questions', () => {
+  const session = new PracticeSession(() => 0, 'topological');
+  assert.equal(session.next(pool(9, 3, 1)).id, 9);
+  assert.equal(session.next(pool(9, 7, 3, 1)).id, 7);
+  assert.equal(session.next(pool(9, 7, 1)).id, 1);
+  assert.equal(session.next(pool(9, 7, 1)), null);
+  assert.equal(session.next(pool(9, 7, 3, 1)).id, 3);
+  assert.equal(session.next(pool(9, 7, 3, 1)), null);
+});

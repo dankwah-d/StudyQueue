@@ -7,7 +7,7 @@ function shuffled(values, random = Math.random) {
   return result;
 }
 
-// Refreshing eligibility never reorders pending IDs or silently starts another session.
+// Server-ordered modes refresh unseen IDs; random and ID modes keep a stable queue.
 class PracticeSession {
   constructor(random = Math.random, order = "random") {
     this.random = random;
@@ -21,6 +21,9 @@ class PracticeSession {
   next(eligible) {
     const byId = new Map(eligible.map(question => [question.id, question]));
     this.pending = this.pending.filter(id => byId.has(id) && !this.seen.has(id));
+    if (this.order === "recommended" || this.order === "topological") {
+      this.pending = [...byId.keys()].filter(id => !this.seen.has(id));
+    }
     const queued = new Set(this.pending);
     const additions = [...byId.keys()].filter(id => !this.seen.has(id) && !queued.has(id));
     this.pending.push(...(this.order === "ordered"

@@ -1,5 +1,25 @@
 # StudyQueue checkpoint
-Updated: 2026-10-28 (America/New_York)
+Updated: 2026-11-04 (America/New_York)
+
+Current slice (2026-11-04, topological continuation):
+- Added Prerequisite order (topological) and `/api/questions/topological`.
+- Kahn sorting covers the entire concept graph, uses lowest ready concept ID as
+  the tie break, and sorts questions by ID within each concept; unassigned last.
+- Existing eligibility still gates delivery. Cycles return 409 without a partial
+  pool. Graph and eligibility reads share one repeatable-read transaction.
+- Maven verify passes 30 Java tests and builds the JAR; 31 Node tests pass.
+  Browser visual checks remain outstanding. No commit, push, or deployment.
+
+Prior slice (2026-11-04):
+- Added Recommended question order to explicit practice sessions. It fetches a ranked
+  eligible pool from `/api/questions/recommended`, sharing SQL with `/next`.
+- Unseen questions rerank after answers, including newly unlocked questions; relocked
+  questions disappear and seen questions never repeat within the session.
+- Randomized and ascending-ID modes retain their stable queue behavior. Order and
+  concept settings apply on New session. No schema or deployment changes.
+- Verification results are recorded in next-slice-delivery.md.
+
+The checkpoint below is retained as history.
 
 Current slice (2026-10-28):
 - Practice uses an eligible question pool and a stable shuffled queue per page, preventing repeats until exhaustion. Newly unlocked questions append; relocked questions are removed before delivery.

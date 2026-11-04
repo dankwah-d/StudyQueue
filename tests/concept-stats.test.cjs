@@ -45,9 +45,10 @@ function setup(statsResponses, questionResponses = [], answerResponses = []) {
     FormData: class { get() { return selectedOption; } },
     fetch: async (url, options) => {
       calls.push(url);
-      if (url === '/api/questions/eligible') {
+      if (url === '/api/questions/eligible' || url === '/api/questions/recommended' || url === '/api/questions/topological') {
         const response = questionResponses.shift();
         if (response instanceof Error) throw response;
+        if (response?.ok === false) return response;
         if (response === null) return { ok: true, json: async () => [] };
         return { ok: true, json: async () => Array.isArray(response) ? response : [response ||
           { id: 1, prompt: 'Question', options: { A: 'Yes', B: 'No' } }] };
@@ -375,4 +376,49 @@ test('selected concept uses explicit ascending order on new session', async () =
   await get('#answer-form').listeners.submit({ preventDefault() {} });
   await get('#next').listeners.click();
   assert.equal(get('#prompt').textContent, 'Q2');
+});
+
+
+test('recommended mode uses ranked pool and settings wait for a new session', async () => {
+  const q = id => ({ id, prompt: `Question ${id}`, options: { A: 'Yes', B: 'No' } });
+  const { get, calls } = setup([stats(), stats(), stats()],
+    [[q(1)], [q(3), q(2), q(1)], [q(2), q(3), q(1)]]);
+  await flush();
+  get('#session-order').value = 'recommended';
+  await get('#new-session').listeners.click();
+  assert.equal(get('#prompt').textContent, 'Question 3');
+  await get('#answer-form').listeners.submit({ preventDefault() {} });
+  get('#session-order').value = 'random';
+  await get('#next').listeners.click();
+  assert.equal(get('#prompt').textContent, 'Question 2');
+  assert.equal(calls.filter(url => url === '/api/questions/recommended' || url === '/api/questions/topological').length, 2);
+});
+
+
+test('prerequisite order fetches topological pool and retains seen IDs', async () => {
+  const q = id => ({ id, prompt: `Question ${id}`, options: { A: 'Yes', B: 'No' } });
+  const { get, calls } = setup([stats(), stats()],
+    [[q(1)], [q(9), q(2)], [q(9), q(7), q(2)]]);
+  await flush();
+  get('#session-order').value = 'topological';
+  await get('#new-session').listeners.click();
+  assert.equal(get('#prompt').textContent, 'Question 9');
+  await get('#answer-form').listeners.submit({ preventDefault() {} });
+  await get('#next').listeners.click();
+  assert.equal(get('#prompt').textContent, 'Question 7');
+  assert.equal(calls.filter(url => url === '/api/questions/topological').length, 2);
+});
+
+
+test('topological cycle conflict explains failure and preserves the current session', async () => {
+  const q = id => ({ id, prompt: `Question ${id}`, options: { A: 'Yes', B: 'No' } });
+  const { get } = setup([stats()], [[q(1)], { ok: false, status: 409 }, [q(2)]]);
+  await flush();
+  get('#session-order').value = 'topological';
+  await get('#new-session').listeners.click();
+  assert.match(get('#status').textContent, /cycle or missing concept/);
+  assert.equal(get('#prompt').textContent, 'Question 1');
+  get('#session-order').value = 'ordered';
+  await get('#new-session').listeners.click();
+  assert.equal(get('#prompt').textContent, 'Question 2');
 });
