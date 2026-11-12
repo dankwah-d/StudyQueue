@@ -407,7 +407,7 @@ test('incorrect answer reveals the correct choice and explanation, then resets f
   assert.equal(second.children[3].textContent, '✓ Correct');
   assert.equal(get('#feedback').attributes['data-result'], 'incorrect');
   assert.equal(get('#feedback').children[1].textContent, 'The explanation for B.');
-  assert.equal(get('#feedback').children[2].textContent, 'Correct answer: B. No');
+  assert.equal(get('#feedback').children[2].textContent, `Correct answer: ${second.children[1].textContent}. No`);
   assert.equal(get('#submit').hidden, true);
   assert.equal(get('#next').hidden, false);
   assert.equal(get('#feedback').focused, true);
@@ -417,6 +417,22 @@ test('incorrect answer reveals the correct choice and explanation, then resets f
   assert.equal(get('#next').hidden, true);
   assert.equal(get('#feedback').children.length, 0);
   assert.equal(get('#options').children[0].attributes['data-outcome'], undefined);
+});
+
+test('visible choice letters follow display order while submissions keep opaque stored IDs', async () => {
+  const { get, select, answerBodies } = setup([stats(), stats()], [{ id: 88, prompt: 'Pool question',
+    options: { 'choice-91': 'Wrong one', E: 'Wrong two', F: 'Wrong three', 'answer-7': 'Right answer' } }],
+    [{ correct: false, correctOptionId: 'answer-7', explanation: 'Why this is right.' }]);
+  await flush();
+  const labels = get('#options').children;
+  assert.deepEqual(labels.map(label => label.children[1].textContent), ['A', 'B', 'C', 'D']);
+  const correct = labels.find(label => label.children[0].value === 'answer-7');
+  select('F');
+  await get('#answer-form').listeners.submit({ preventDefault() {} });
+  assert.equal(answerBodies[0].optionId, 'F');
+  assert.equal(get('#feedback').children[2].textContent,
+    `Correct answer: ${correct.children[1].textContent}. Right answer`);
+  assert.equal(correct.attributes['data-outcome'], 'correct');
 });
 
 test('a rejected answer can be retried without disabling options or creating duplicate submissions', async () => {

@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class QuestionBankTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private QuestionController controller;
+    @Autowired private com.studyqueue.studyqueue.Repository.QuestionRepository questionRepository;
 
     private static final List<String> NEW_CONCEPTS = List.of(
             "Interprocess Communication", "Synchronization", "Deadlock", "Memory Management");
@@ -34,6 +35,7 @@ class QuestionBankTest {
         for (String concept : ALL_CONCEPTS) {
             var rows = jdbc.queryForList("""
                     SELECT q.id, q.correct_option_id, q.explanation,
+                           q.display_option_count,
                            (SELECT count(*) FROM jsonb_each_text(q.options)) AS choice_count,
                            (SELECT count(DISTINCT value) FROM jsonb_each_text(q.options)
                             WHERE length(trim(value)) > 0) AS distinct_choices
@@ -41,8 +43,9 @@ class QuestionBankTest {
                     """, concept);
             assertEquals(16, rows.size(), concept);
             for (var row : rows) {
-                assertEquals(4L, ((Number) row.get("choice_count")).longValue());
-                assertEquals(4L, ((Number) row.get("distinct_choices")).longValue());
+                long expectedPoolSize = row.get("display_option_count") == null ? 4 : 6;
+                assertEquals(expectedPoolSize, ((Number) row.get("choice_count")).longValue());
+                assertEquals(expectedPoolSize, ((Number) row.get("distinct_choices")).longValue());
                 assertFalse(((String) row.get("explanation")).isBlank());
                 long id = ((Number) row.get("id")).longValue();
                 String answer = (String) row.get("correct_option_id");
@@ -59,6 +62,39 @@ class QuestionBankTest {
                 SELECT count(*) FROM (SELECT prompt FROM questions GROUP BY prompt HAVING count(*) > 1) duplicates
                 """, Long.class));
     }
+
+    @Test
+    void seededDistractorPoolsVaryChoicesWithoutChangingCorrectAnswers() {
+        var coverage = jdbc.queryForList("""
+                SELECT c.name, count(*) AS total FROM questions q JOIN concepts c ON c.id=q.concept_id
+                WHERE q.display_option_count=4 GROUP BY c.name
+                """);
+        assertEquals(7, coverage.size());
+        for (var concept : coverage) assertEquals(8L, ((Number) concept.get("total")).longValue());
+        var delivered = controller.getQuestions().stream().collect(Collectors.toMap(q -> q.id(), q -> q));
+        for (var question : questionRepository.findAll()) {
+            if (question.getDisplayOptionCount() == null) continue;
+            assertEquals("MCQ_SINGLE", question.getQuestionType());
+            assertEquals(4, delivered.get(question.getId()).options().size());
+            assertTrue(delivered.get(question.getId()).options().containsKey(question.getCorrectOptionId()));
+            var subsets = new java.util.HashSet<Set<String>>();
+            for (int seed = 0; seed < 20; seed++) {
+                var options = com.studyqueue.studyqueue.Service.AnswerOptions.present(question.getOptions(),
+                        question.getCorrectOptionId(), 4, new java.util.Random(seed));
+                assertEquals(4, options.size());
+                assertTrue(options.containsKey(question.getCorrectOptionId()));
+                options.forEach((id, text) -> assertEquals(question.getOptions().get(id), text));
+                subsets.add(Set.copyOf(options.keySet()));
+            }
+            assertTrue(subsets.size() > 1);
+            for (String distractor : List.of("E", "F")) {
+                var result = controller.answer(question.getId(), new QuestionController.AnswerRequest(distractor, UUID.randomUUID()));
+                assertFalse(result.correct());
+                assertEquals(question.getCorrectOptionId(), result.correctOptionId());
+            }
+        }
+    }
+
 
     @Test
     void newConceptsUnlockAlongTheirPrerequisitePaths() {

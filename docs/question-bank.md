@@ -74,12 +74,24 @@ recommends Processes practice.
 
 ## Optional answer pools
 
+V13 adds two tailored distractors to the eight V10 MCQs in each topic: 56 pools
+gain 112 additional wrong-answer choices. Each expanded pool stores six choices
+and displays four per presentation, always including the original correct answer
+plus three sampled distractors. Repeated presentations may use the same subset;
+they are not guaranteed to differ every time. The other 56 MCQs keep their four
+choices. All 21 ordering questions are unchanged, and the total remains 133.
+
+Visible letters follow the displayed positions (A through D for these pools),
+while submissions retain the stable stored IDs. Feedback uses the visible letter.
+The migration preserves original A-D choice texts, correct answers, explanations,
+question IDs, and attempts, and applies on the next application startup.
+
 `questions.options` remains the JSON object mapping stable answer IDs to text.
-V7 adds nullable `display_option_count`. Existing rows keep NULL and display every
+V7 adds nullable `display_option_count`. Rows left at NULL display every
 choice, including questions with more than four options. To enable a distractor pool,
 store additional plausible wrong answers in `options` and set `display_option_count`
-to the desired number of displayed choices (at least 2). No new distractors or seed
-questions are invented by this change.
+to the desired number of displayed choices (at least 2). V7 itself adds no content;
+V13 supplies the authored pools described above.
 
 For a pool with eight choices and `display_option_count = 4`, delivery samples three
 incorrect choices without replacement and includes the correct choice. A count above

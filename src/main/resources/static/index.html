@@ -430,13 +430,13 @@
         caption.textContent = text;
         const key = document.createElement("span");
         key.className = "option-key";
-        key.textContent = id;
+        key.textContent = String.fromCharCode(65 + optionElements.size);
         key.setAttribute("aria-hidden", "true");
         const indicator = document.createElement("span");
         indicator.className = "option-indicator";
 
         label.append(radio, key, caption, indicator);
-        optionElements.set(id, { label, radio, indicator });
+        optionElements.set(id, { label, radio, indicator, displayKey: key.textContent });
         options.append(label);
       }
     }
@@ -505,7 +505,7 @@
           solution.className = "correct-answer";
           solution.textContent = sequence
             ? `Correct order: ${(result.correctOrder || []).map(id => question.options[id]).join(" → ")}`
-            : `Correct answer: ${result.correctOptionId}. ${question.options[result.correctOptionId] || ""}`;
+            : `Correct answer: ${optionElements.get(result.correctOptionId)?.displayKey || ""}. ${question.options[result.correctOptionId] || ""}`;
           feedback.append(solution);
         }
         for (const [id, option] of optionElements) {
