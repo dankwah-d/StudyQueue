@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import java.util.Map;
+import java.util.List;
 
     @Entity
     @Table(name = "questions")
@@ -21,7 +22,17 @@ public class Question {
     @Column(nullable = false, columnDefinition = "jsonb")
     private Map<String, String> options;
 
-    @Column(name = "correct_option_id", nullable = false)
+    @Column(name = "question_type", nullable = false)
+    private String questionType;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "correct_order", columnDefinition = "jsonb")
+    private List<String> correctOrder;
+
+    public String getQuestionType() { return questionType; }
+    public List<String> getCorrectOrder() { return correctOrder; }
+
+    @Column(name = "correct_option_id")
     private String correctOptionId;
 
     @Column(name = "display_option_count")

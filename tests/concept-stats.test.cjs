@@ -12,7 +12,7 @@ const stats = (total = 3, correct = 2, accuracy = 66.7, state = 'PRACTICING', el
   { conceptId: 1, conceptName: 'Processes', totalAttempts: total, correctAnswers: correct, accuracyPercent: accuracy, state, eligible, prerequisites }
 ];
 
-function setup(statsResponses, questionResponses = [], answerResponses = []) {
+function setup(statsResponses, questionResponses = [], answerResponses = [], historyResponses = []) {
   class Element {
     children = [];
     listeners = {};
@@ -45,6 +45,12 @@ function setup(statsResponses, questionResponses = [], answerResponses = []) {
     FormData: class { get() { return selectedOption; } },
     fetch: async (url, options) => {
       calls.push(url);
+      if (url === '/api/stats/history') {
+        assert.equal(options.method, 'DELETE');
+        const result = historyResponses.shift();
+        if (result instanceof Error) throw result;
+        return result || { ok: true, status: 204 };
+      }
       if (url === '/api/questions/eligible' || url === '/api/questions/recommended' || url === '/api/questions/topological') {
         const response = questionResponses.shift();
         if (response instanceof Error) throw response;
@@ -71,6 +77,134 @@ function setup(statsResponses, questionResponses = [], answerResponses = []) {
   return { get, calls, answerBodies, select(id) { selectedOption = id; get('#answer-form').listeners.change(); },
     navigate(id) { window.location.hash = `#${id}`; window.listeners.hashchange(); } };
 }
+
+test('clearing history requires confirmation; cancel keeps attempts and session', async () => {
+  const { get, calls } = setup([stats()]);
+  await flush();
+  get('#clear-history').listeners.click();
+  assert.equal(get('#history-confirmation').hidden, false);
+  assert.equal(get('#cancel-clear-history').focused, true);
+  assert.equal(calls.includes('/api/stats/history'), false);
+  get('#cancel-clear-history').listeners.click();
+  assert.equal(get('#history-confirmation').hidden, true);
+  assert.equal(get('#overview-attempts').textContent, '3');
+  assert.equal(get('#prompt').textContent, 'Question');
+  assert.equal(calls.includes('/api/stats/history'), false);
+});
+
+const sequenceQuestion = { id: 120, questionType: 'SEQUENCE', prompt: 'Order the steps',
+  options: { X: 'First step', Y: 'Second step', Z: 'Third step' } };
+function sequenceControls(get) {
+  const children = get('#options').children;
+  return { choose(text) { children[1].children.find(button => button.textContent === text).listeners.click(); },
+    undo: children[3], list: children[2], buttons: children[1].children };
+}
+
+test('sequence selection requires every step, supports undo, and submits the selected order', async () => {
+  const { get, answerBodies } = setup([stats(), stats(4, 3, 75)], [sequenceQuestion],
+    [{ correct: true, correctOrder: ['X', 'Y', 'Z'], explanation: 'Ordered correctly.' }]);
+  await flush();
+  const controls = sequenceControls(get);
+  assert.equal(get('#submit').disabled, true);
+  assert.ok(controls.buttons.every(button => !button.disabled));
+  controls.choose('Second step');
+  controls.choose('Second step');
+  assert.equal(controls.list.children.length, 1);
+  controls.undo.listeners.click();
+  assert.equal(controls.list.children.length, 0);
+  controls.choose('First step');
+  controls.choose('Second step');
+  assert.equal(get('#submit').disabled, true);
+  await get('#answer-form').listeners.submit({ preventDefault() {} });
+  assert.equal(answerBodies.length, 0);
+  controls.choose('Third step');
+  assert.equal(get('#submit').disabled, false);
+  await get('#answer-form').listeners.submit({ preventDefault() {} });
+  assert.deepEqual(answerBodies[0].orderedOptionIds, ['X', 'Y', 'Z']);
+  assert.equal('optionId' in answerBodies[0], false);
+  assert.equal(get('#feedback').children[0].textContent, 'Correct!');
+  assert.equal(controls.undo.disabled, true);
+  assert.ok(controls.buttons.every(button => button.disabled));
+});
+
+test('incorrect sequences show the correct order; the next question starts fresh', async () => {
+  const { get } = setup([stats(), stats(4, 2, 50)], [sequenceQuestion,
+    { ...sequenceQuestion, id: 121 }],
+    [{ correct: false, correctOrder: ['X', 'Y', 'Z'], explanation: 'Follow the steps.' }]);
+  await flush();
+  const controls = sequenceControls(get);
+  for (const text of ['Third step', 'First step', 'Second step']) controls.choose(text);
+  await get('#answer-form').listeners.submit({ preventDefault() {} });
+  assert.equal(get('#feedback').children[2].textContent, 'Correct order: First step → Second step → Third step');
+  await get('#next').listeners.click();
+  assert.equal(sequenceControls(get).list.children.length, 0);
+  assert.equal(get('#submit').disabled, true);
+});
+
+test('sequence retries retain the original order and submission identity', async () => {
+  const { get, answerBodies } = setup([stats(), stats(4, 3, 75)], [sequenceQuestion],
+    [new Error('Lost reply'), { correct: true, correctOrder: ['X', 'Y', 'Z'] }]);
+  await flush();
+  const controls = sequenceControls(get);
+  for (const text of ['First step', 'Second step', 'Third step']) controls.choose(text);
+  await get('#answer-form').listeners.submit({ preventDefault() {} });
+  assert.equal(controls.undo.disabled, true);
+  controls.undo.listeners.click();
+  assert.equal(controls.list.children.length, 3);
+  assert.equal(get('#submit').disabled, false);
+  await get('#answer-form').listeners.submit({ preventDefault() {} });
+  assert.deepEqual(answerBodies[1], answerBodies[0]);
+  assert.equal(get('#feedback').children[0].textContent, 'Correct!');
+});
+
+test('clearing history refreshes progress and starts a fresh unfiltered session', async () => {
+  const { get, calls } = setup([stats(), stats(4, 3, 75), stats(0, 0, 0, 'NOT_STARTED')],
+    [undefined, { id: 1, prompt: 'Fresh question', options: { A: 'Yes', B: 'No' } }]);
+  await flush();
+  await get('#answer-form').listeners.submit({ preventDefault() {} });
+  await flush();
+  get('#session-concept').value = '2';
+  get('#clear-history').listeners.click();
+  await get('#confirm-clear-history').listeners.click();
+  assert.equal(calls.filter(url => url === '/api/stats/history').length, 1);
+  assert.equal(get('#overview-attempts').textContent, '0');
+  assert.equal(get('#overview-accuracy').textContent, '0.0%');
+  assert.equal(get('#stats-rows').children[0].children[4].textContent, 'Not started');
+  assert.equal(get('#session-concept').value, '');
+  assert.equal(get('#session-progress').textContent, '0 of 1 answered');
+  assert.equal(get('#prompt').textContent, 'Fresh question');
+  assert.equal(get('#feedback').children.length, 0);
+  assert.equal(get('#history-confirmation').hidden, true);
+});
+
+test('a failed history clear preserves the question and allows a clear retry', async () => {
+  const { get } = setup([stats(), stats(0, 0, 0, 'NOT_STARTED')], [], [],
+    [new Error('Offline'), { ok: true, status: 204 }]);
+  await flush();
+  get('#clear-history').listeners.click();
+  await get('#confirm-clear-history').listeners.click();
+  assert.match(get('#history-status').textContent, /Could not confirm.*Offline/);
+  assert.equal(get('#prompt').textContent, 'Question');
+  assert.equal(get('#overview-attempts').textContent, '3');
+  assert.equal(get('#confirm-clear-history').disabled, false);
+  await get('#confirm-clear-history').listeners.click();
+  assert.match(get('#history-status').textContent, /Practice history cleared/);
+  assert.equal(get('#overview-attempts').textContent, '0');
+});
+
+test('history cannot be cleared while an answer request is still running', async () => {
+  let finish;
+  const pending = new Promise(resolve => { finish = resolve; });
+  const { get, calls } = setup([stats(), stats(4, 3, 75)], [], [pending]);
+  await flush();
+  const answer = get('#answer-form').listeners.submit({ preventDefault() {} });
+  get('#clear-history').listeners.click();
+  await get('#confirm-clear-history').listeners.click();
+  assert.match(get('#history-status').textContent, /Wait for the current request/);
+  assert.equal(calls.includes('/api/stats/history'), false);
+  finish({ correct: true, correctOptionId: 'A', explanation: 'Saved' });
+  await answer;
+});
 
 test('loads counts and rounded accuracy, then refreshes after an answer', async () => {
   const { get, calls } = setup([stats(), stats(4, 3, 75)]);

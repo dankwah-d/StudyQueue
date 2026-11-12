@@ -24,6 +24,23 @@ Checks that do not need PostgreSQL:
 
 # Answer retries
 
+## Clearing practice history
+
+In **Progress**, choose **Clear practice history**, then confirm **Yes, delete all history**.
+Cancel leaves history unchanged. This clears every attempt in this installation,
+including unassigned-question attempts, and resets derived mastery and prerequisite
+unlocks. It keeps questions, concepts, and prerequisite relationships. The page
+refreshes progress and the map and starts a fresh session with all available
+concepts. Deletion is permanent and shared across this installation, which has no
+learner accounts. `DELETE /api/stats/history` returns 204 and can be retried safely.
+
+The UI waits for an active question/answer request before accepting a clear; if
+deletion cannot be confirmed, it keeps the current session and offers a retry.
+Other browser tabs should be refreshed after clearing; new answers in those tabs
+can create new attempts. The feature does not prevent future submissions.
+
+## Submission retries
+
 `POST /api/questions/{id}/answer` accepts an optional UUID `submissionId` alongside `optionId`. Reuse the same UUID and option for retries of one submission; the API returns its stored evaluation without inserting another attempt. Reusing a UUID for another question or option returns HTTP 409. Use a new UUID for intentional further practice. Clients omitting the UUID retain the legacy behavior of recording each request as a new attempt.
 
 The practice page retains the UUID and original choice after an ambiguous failure, disables option changes, and retries the same payload. It clears the pending payload after a definite client rejection or when loading a new question. The page does not persist pending submissions across reloads.

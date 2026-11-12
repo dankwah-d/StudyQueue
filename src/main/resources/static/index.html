@@ -29,11 +29,11 @@
       <div class="session-progress"><span id="session-progress" role="status">Preparing session?</span><progress id="session-meter" max="1" value="0" aria-label="Session answers completed"></progress></div>
       <div class="study-layout">
         <div class="question-shell">
-          <div class="question-topline"><p id="status" class="topic-label" role="status">Finding your next question&hellip;</p><span class="question-kind">Choose one answer</span></div>
+          <div class="question-topline"><p id="status" class="topic-label" role="status">Finding your next question&hellip;</p><span id="question-kind" class="question-kind">Choose one answer</span></div>
           <div class="question-content">
             <h2 id="prompt" tabindex="-1"></h2>
             <form id="answer-form">
-              <fieldset><legend class="sr-only">Choose one answer</legend><div id="options"></div></fieldset>
+              <fieldset><legend id="answer-legend" class="sr-only">Choose one answer</legend><div id="options"></div></fieldset>
             </form>
             <div id="feedback" role="status" aria-live="polite" tabindex="-1"></div>
           </div>
@@ -59,6 +59,17 @@
       <div class="view-heading"><div><p class="eyebrow">YOUR LEARNING, SO FAR</p><h1 id="stats-heading">See where you're growing.</h1><p class="view-description">A record of your practice, and a guide to what needs attention.</p></div><a class="secondary-button" href="#practice">Keep practicing <span aria-hidden="true">&#8594;</span></a></div>
       <div class="overview" aria-label="Concept progress" aria-describedby="overview-status"><div class="metric"><span class="metric-label">Concept attempts</span><strong id="overview-attempts">&mdash;</strong><span>Answers linked to concepts</span></div><div class="metric"><span class="metric-label">Accuracy</span><strong id="overview-accuracy">&mdash;</strong><span>Correct answers across those attempts</span></div><div class="metric"><span class="metric-label">Concepts mastered</span><strong id="overview-mastered">&mdash;</strong><span>A foundation for what's next</span></div></div>
       <p id="overview-status" class="overview-status" role="status">Loading progress&hellip;</p>
+      <div class="progress-panel">
+        <h2>Practice history</h2>
+        <p>Clear all recorded attempts in this installation and reset mastery and unlocks. Questions and concepts are kept. This affects everyone using this installation and cannot be undone.</p>
+        <button id="clear-history" type="button" aria-expanded="false" aria-controls="history-confirmation">Clear practice history</button>
+        <div id="history-confirmation" hidden>
+          <p>Delete all practice history and start a fresh session?</p>
+          <button id="confirm-clear-history" type="button">Yes, delete all history</button>
+          <button id="cancel-clear-history" type="button">Cancel</button>
+        </div>
+        <p id="history-status" role="status" aria-live="polite"></p>
+      </div>
       <div class="progress-panel"><div class="panel-heading"><h2>Concept by concept</h2><span class="panel-caption">All recorded practice</span></div><p id="stats-status" role="status">Loading statistics&hellip;</p><div class="table-scroll" tabindex="0" role="region" aria-label="Concept statistics"><table id="stats-table" role="table" hidden><caption class="sr-only">Attempts, accuracy, state, availability, and prerequisites by concept</caption><thead role="rowgroup"><tr role="row"><th scope="col">Concept</th><th scope="col">Attempts</th><th scope="col">Correct</th><th scope="col">Accuracy</th><th scope="col">State</th><th scope="col">Practice</th><th scope="col">Prerequisites</th></tr></thead><tbody id="stats-rows" role="rowgroup"></tbody></table></div></div>
       <details class="mastery-rules"><summary>What does mastered mean?</summary><p>A concept is mastered after at least 5 attempts with 80% accuracy, using unrounded results. New answers can change that state. A concept unlocks when all its direct prerequisites are mastered. These statistics cover all recorded practice in this installation, not a personal account.</p></details>
     </section>
@@ -249,10 +260,143 @@
     let answered = false;
     let pendingSubmission = null;
     const optionElements = new Map();
+    let selectedOrder = [];
+    let sequenceButtons = [];
+    let undoSequence = null;
+    function updateSequenceControls() {
+      if (question?.questionType !== "SEQUENCE") return;
+      const locked = busy || answered || !!pendingSubmission;
+      for (const { id, button } of sequenceButtons) button.disabled = locked || selectedOrder.includes(id);
+      if (undoSequence) undoSequence.disabled = locked || selectedOrder.length === 0;
+      submit.disabled = busy || answered || selectedOrder.length !== Object.keys(question.options).length;
+    }
+    function renderSequence() {
+      const instruction = document.createElement("p");
+      instruction.textContent = "Select each step in order, from first to last. Use Undo last step to change your order.";
+      const available = document.createElement("div");
+      available.className = "sequence-choices";
+      const ordered = document.createElement("ol");
+      ordered.className = "sequence-order";
+      ordered.setAttribute("aria-label", "Your selected sequence");
+      ordered.setAttribute("aria-live", "polite");
+      function showOrder() {
+        ordered.replaceChildren();
+        for (const id of selectedOrder) {
+          const item = document.createElement("li");
+          item.textContent = question.options[id];
+          ordered.append(item);
+        }
+        updateSequenceControls();
+        answerHint.textContent = `${selectedOrder.length} of ${Object.keys(question.options).length} steps selected.`;
+      }
+      for (const [id, text] of shuffled(Object.entries(question.options))) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = text;
+        button.addEventListener("click", () => {
+          if (busy || answered || pendingSubmission || selectedOrder.includes(id)) return;
+          selectedOrder.push(id);
+          showOrder();
+        });
+        sequenceButtons.push({ id, button });
+        available.append(button);
+      }
+      undoSequence = document.createElement("button");
+      undoSequence.type = "button";
+      undoSequence.textContent = "Undo last step";
+      undoSequence.addEventListener("click", () => {
+        if (busy || answered || pendingSubmission) return;
+        const last = selectedOrder.pop();
+        showOrder();
+        sequenceButtons.find(item => item.id === last)?.button.focus();
+      });
+      options.append(instruction, available, ordered, undoSequence);
+      showOrder();
+    }
+    const clearHistory = document.querySelector("#clear-history");
+    const historyConfirmation = document.querySelector("#history-confirmation");
+    const confirmClearHistory = document.querySelector("#confirm-clear-history");
+    const cancelClearHistory = document.querySelector("#cancel-clear-history");
+    const historyStatus = document.querySelector("#history-status");
+    function closeHistoryConfirmation() {
+      historyConfirmation.hidden = true;
+      clearHistory.setAttribute("aria-expanded", "false");
+    }
+    clearHistory.addEventListener("click", () => {
+      historyStatus.textContent = "";
+      historyConfirmation.hidden = false;
+      clearHistory.setAttribute("aria-expanded", "true");
+      cancelClearHistory.focus();
+    });
+    cancelClearHistory.addEventListener("click", () => {
+      if (busy) return;
+      closeHistoryConfirmation();
+      clearHistory.focus();
+    });
+    confirmClearHistory.addEventListener("click", async () => {
+      if (busy) {
+        historyStatus.textContent = "Wait for the current request to finish, then try again.";
+        return;
+      }
+      busy = true;
+      confirmClearHistory.disabled = true;
+      cancelClearHistory.disabled = true;
+      newSession.disabled = true;
+      next.disabled = true;
+      submit.disabled = true;
+      historyStatus.textContent = "Clearing practice history…";
+      let cleared = false;
+      try {
+        const response = await fetch("/api/stats/history", { method: "DELETE" });
+        if (!response.ok) throw new Error(`Request failed (${response.status}).`);
+        cleared = true;
+        ++statsRequest;
+        pendingSubmission = null;
+        question = null;
+        answered = false;
+        completed = 0;
+        activeConcept = "";
+        sessionConcept.value = "";
+        practiceSession = new PracticeSession(Math.random, sessionOrder.value || "random");
+        optionElements.clear();
+        options.replaceChildren();
+        feedback.replaceChildren();
+        feedback.removeAttribute("data-result");
+        submit.hidden = true;
+        next.hidden = true;
+        prompt.textContent = "Preparing a fresh session…";
+        updateProgress();
+        closeHistoryConfirmation();
+        historyStatus.textContent = "Practice history cleared. Progress has been reset.";
+      } catch (error) {
+        historyStatus.textContent = `Could not confirm history was cleared. ${error.message} You can retry clearing it.`;
+      } finally {
+        busy = false;
+        confirmClearHistory.disabled = false;
+        cancelClearHistory.disabled = false;
+        newSession.disabled = !!pendingSubmission && !answered;
+        next.disabled = false;
+        submit.disabled = answered || !question;
+      }
+      if (cleared) {
+        busy = true;
+        newSession.disabled = true;
+        next.disabled = true;
+        await loadConceptStats();
+        busy = false;
+        await loadQuestion(true);
+      }
+    });
 
     function renderQuestion() {
       answered = false;
       pendingSubmission = null;
+      const kind = question.questionType === "SEQUENCE" ? "Select the correct sequence" : "Choose one answer";
+      document.querySelector("#question-kind").textContent = kind;
+      document.querySelector("#answer-legend").textContent = kind;
+      selectedOrder = [];
+      sequenceButtons = [];
+      undoSequence = null;
       updateFocus();
       updateProgress();
       status.textContent = question.concept
@@ -267,6 +411,11 @@
       submit.textContent = "Check answer →";
       submit.disabled = true;
       next.hidden = true;
+
+      if (question.questionType === "SEQUENCE") {
+        renderSequence();
+        return;
+      }
 
       for (const [id, text] of shuffled(Object.entries(question.options))) {
         const label = document.createElement("label");
@@ -293,6 +442,7 @@
     }
 
     form.addEventListener("change", () => {
+      if (question?.questionType === "SEQUENCE") { updateSequenceControls(); return; }
       submit.disabled = busy || answered;
       if (!busy && !answered) answerHint.textContent = "Ready when you are.";
     });
@@ -301,11 +451,15 @@
       event.preventDefault();
       if (busy || answered || !question) return;
 
-      const optionId = pendingSubmission?.optionId || new FormData(form).get("optionId");
-      if (!optionId) return;
+      const sequence = question.questionType === "SEQUENCE";
+      const optionId = sequence ? null : pendingSubmission?.optionId || new FormData(form).get("optionId");
+      if (sequence ? selectedOrder.length !== Object.keys(question.options).length : !optionId) return;
 
-      pendingSubmission ||= { submissionId: crypto.randomUUID(), optionId };
+      pendingSubmission ||= sequence
+        ? { submissionId: crypto.randomUUID(), orderedOptionIds: [...selectedOrder] }
+        : { submissionId: crypto.randomUUID(), optionId };
       busy = true;
+      updateSequenceControls();
       newSession.disabled = true;
       for (const option of optionElements.values()) option.radio.disabled = true;
       submit.disabled = true;
@@ -349,7 +503,9 @@
         if (!result.correct) {
           const solution = document.createElement("p");
           solution.className = "correct-answer";
-          solution.textContent = `Correct answer: ${result.correctOptionId}. ${question.options[result.correctOptionId] || ""}`;
+          solution.textContent = sequence
+            ? `Correct order: ${(result.correctOrder || []).map(id => question.options[id]).join(" → ")}`
+            : `Correct answer: ${result.correctOptionId}. ${question.options[result.correctOptionId] || ""}`;
           feedback.append(solution);
         }
         for (const [id, option] of optionElements) {
@@ -379,6 +535,7 @@
         busy = false;
         newSession.disabled = !!pendingSubmission && !answered;
         submit.disabled = answered;
+        updateSequenceControls();
         submit.textContent = "Check answer →";
       }
     });
@@ -443,6 +600,7 @@
         busy = false;
         newSession.disabled = !!pendingSubmission && !answered;
         next.disabled = false;
+        updateSequenceControls();
       }
     }
 

@@ -37,12 +37,15 @@ public record QuestionView(
         Long id,
         String prompt,
         Map<String, String> options,
-        ConceptView concept) {}
+        ConceptView concept,
+        String questionType) {}
 
-    public record AnswerRequest(String optionId, UUID submissionId) {}
+    public record AnswerRequest(String optionId, UUID submissionId, List<String> orderedOptionIds) {
+        public AnswerRequest(String optionId, UUID submissionId) { this(optionId, submissionId, null); }
+    }
 
     public record AnswerResult(
-            boolean correct, String correctOptionId, String explanation) {}
+            boolean correct, String correctOptionId, String explanation, List<String> correctOrder) {}
 
 @GetMapping
 public List<QuestionView> getQuestions() {
@@ -81,12 +84,13 @@ public List<QuestionView> getQuestions() {
         return new QuestionView(
                     q.getId(),
                     q.getPrompt(),
-                    AnswerOptions.present(q.getOptions(), q.getCorrectOptionId(), q.getDisplayOptionCount(), ThreadLocalRandom.current()),
+                    "SEQUENCE".equals(q.getQuestionType()) ? q.getOptions()
+                        : AnswerOptions.present(q.getOptions(), q.getCorrectOptionId(), q.getDisplayOptionCount(), ThreadLocalRandom.current()),
                     q.getConcept() == null
                             ? null
                             : new ConceptView(
                                     q.getConcept().getId(),
-                                    q.getConcept().getName()));
+                                    q.getConcept().getName()), q.getQuestionType());
     }
 
     @PostMapping("/{id}/answer")
@@ -98,7 +102,17 @@ public List<QuestionView> getQuestions() {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Question not found"));
 
-        if (request.optionId() == null
+        if ("SEQUENCE".equals(question.getQuestionType())) {
+            var order = request.orderedOptionIds();
+            if (request.optionId() != null || order == null || order.stream().anyMatch(java.util.Objects::isNull)
+                    || order.size() != question.getOptions().size()
+                    || new java.util.HashSet<>(order).size() != order.size()
+                    || !question.getOptions().keySet().containsAll(order)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Order every step exactly once");
+            }
+            return answerService.submitSequence(question, order, request.submissionId());
+        }
+        if (request.orderedOptionIds() != null || request.optionId() == null
                 || !question.getOptions().containsKey(request.optionId())) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Choose a valid option");

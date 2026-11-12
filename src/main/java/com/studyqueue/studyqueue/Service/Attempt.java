@@ -14,7 +14,7 @@ public class Attempt {
     @Column(name = "question_id", nullable = false)
     private Long questionId;
 
-    @Column(name = "selected_option_id", nullable = false, length = 20)
+    @Column(name = "selected_option_id", length = 20)
     private String selectedOptionId;
 
     @Column(nullable = false)

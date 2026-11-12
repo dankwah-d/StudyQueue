@@ -27,6 +27,41 @@ class ConceptStatsHttpTest {
 
     @Test
     @Transactional
+    void clearingHistoryResetsStatsAndEligibilityButPreservesTheBank() throws Exception {
+        MockMvc http = MockMvcBuilders.webAppContextSetup(context).build();
+        long questions = jdbc.queryForObject("SELECT count(*) FROM questions", Long.class);
+        long concepts = jdbc.queryForObject("SELECT count(*) FROM concepts", Long.class);
+        long edges = jdbc.queryForObject("SELECT count(*) FROM concept_prerequisites", Long.class);
+        Long id = jdbc.queryForObject("SELECT min(q.id) FROM questions q JOIN concepts c ON c.id=q.concept_id WHERE c.name='Processes'", Long.class);
+        jdbc.update("DELETE FROM attempts");
+        jdbc.update("INSERT INTO attempts(question_id, selected_option_id, correct) SELECT ?, 'A', true FROM generate_series(1, 5)", id);
+        http.perform(get("/api/questions/eligible"))
+                .andExpect(jsonPath("$[?(@.concept.name == 'Threads')]").isNotEmpty());
+        http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/stats/history"))
+                .andExpect(status().isNoContent());
+        http.perform(get("/api/stats"))
+                .andExpect(jsonPath("$.totalAttempts").value(0))
+                .andExpect(jsonPath("$.correctAnswers").value(0))
+                .andExpect(jsonPath("$.accuracyPercent").value(0));
+        http.perform(get("/api/questions/eligible"))
+                .andExpect(jsonPath("$[?(@.concept.name != 'Processes')]").isEmpty())
+                .andExpect(jsonPath("$[?(@.concept.name == 'Processes')]").isNotEmpty());
+        org.junit.jupiter.api.Assertions.assertTrue(jdbc.queryForList("SELECT correct FROM attempts").isEmpty());
+        org.junit.jupiter.api.Assertions.assertEquals(questions, jdbc.queryForObject("SELECT count(*) FROM questions", Long.class));
+        org.junit.jupiter.api.Assertions.assertEquals(concepts, jdbc.queryForObject("SELECT count(*) FROM concepts", Long.class));
+        org.junit.jupiter.api.Assertions.assertEquals(edges, jdbc.queryForObject("SELECT count(*) FROM concept_prerequisites", Long.class));
+        // Empty history can safely be cleared again.
+        http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/stats/history"))
+                .andExpect(status().isNoContent());
+        String option = jdbc.queryForObject("SELECT correct_option_id FROM questions WHERE id=?", String.class, id);
+        http.perform(post("/api/questions/{id}/answer", id).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"optionId\":\"" + option + "\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.correct").value(true));
+        http.perform(get("/api/stats")).andExpect(jsonPath("$.totalAttempts").value(1));
+    }
+
+    @Test
+    @Transactional
     void deduplicatesRetriesRejectsKeyReuseAndAllowsNewAttempts() throws Exception {
         Long questionId = jdbc.queryForObject("""
                 INSERT INTO questions(prompt, options, correct_option_id)

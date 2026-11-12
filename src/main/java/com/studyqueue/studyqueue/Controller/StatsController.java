@@ -26,6 +26,13 @@ public class StatsController {
             long correctAnswers,
             double accuracyPercent) {}
 
+    @DeleteMapping("/history")
+    @Transactional
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    public void clearHistory() {
+        repository.deleteAllInBatch();
+    }
+
     public record ConceptStats(
             Long conceptId,
             String conceptName,
